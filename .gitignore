@@ -1,0 +1,12 @@
+.svn
+DARX_Logs
+*.log
+darxplorer
+*.sublime-project
+*.sublime-workspace
+dxpl-compiler-cli
+lexer
+obj
+src/function
+tg
+tests/tg-3.1

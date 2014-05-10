@@ -1,0 +1,50 @@
+project Tests is
+
+  for Main use
+    (
+     "avl_test",
+     "bag_test",
+     "collection_test",
+     "deque_test",
+     "graph_test",
+     "list_test",
+     "map_test",
+     "ordered_collection_test",
+     "ordered_queue_test",
+     "queue_test",
+     "ring_test",
+     "set_test",
+     "smart_test",
+     "sort_test",
+     "stack_test",
+     "stream_test",
+     "tree_test"
+    );
+
+  for Source_Dirs use (".", "../src");
+  for Exec_Dir use ".";
+  for Object_Dir use ".build";
+
+  package Builder is
+     for Default_Switches ("Ada") use
+       (
+        "-m",
+        "-g"
+       );
+  end Builder;
+
+  package Compiler is
+     for Default_Switches ("Ada") use
+       (
+        "-gnatqQafoy",
+        "-gnatwaL",
+        "-gnat95",
+        "-O2"
+       );
+  end Compiler;
+
+  package Binder is
+     for Default_Switches ("Ada") use ("-E");
+  end Binder;
+
+end Tests;

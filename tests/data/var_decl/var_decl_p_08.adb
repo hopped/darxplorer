@@ -1,0 +1,50 @@
+with DXPL_Types_32; use DXPL_Types_32;
+
+------------------------------------------------------------------------
+--!  Copyright 2009 Chair of Media Security / Prof. Dr. Stefan Lucks
+--!
+--!  Author        :: dennis.hoppe@uni-weimar.de
+--!  Created       :: 09/18/2009
+--!  Last-Modified :: 09/18/2009
+--!
+--!  TEST
+--!    * VARIABLES_DECLARATION (POSITIVE)
+--!
+--!  Simple two-dimensional array initialisation. Compiler hat to accept.
+------------------------------------------------------------------------
+procedure Var_Decl_P_08 is
+
+    ------------------------------
+    --  Variables declarations  --
+    ------------------------------
+
+    type TwoD_Array is array (0 .. 19, 0 .. 15) of Integer;
+    SIGMA : TwoD_Array :=
+    (( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15),
+     (14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3));
+
+    --------------------
+    --  DXPL_Process  --
+    --------------------
+
+    procedure DXPL_Process (Message : in out DXPL_Types_32.Word_Array_2) is
+    begin
+        null;
+    end DXPL_Process;
+
+-------------
+--  SETUP  --
+-------------
+    
+begin
+    DXPL_Types_32.Configuration
+        (DXPL_ALGORITHM   => "Simple Hash",
+         DXPL_ROUNDS      => 10,
+         DXPL_TERMINATION => 256);
+
+    DXPL_Types_32.Test_Vector
+        (DXPL_MESSAGE => (0 => 16#01234567#, 1 => 16#89abcdef#),
+         DXPL_DIGEST  => (0 => 16#126c6b92#, 1 => 16#c0653a3e#));
+
+end Var_Decl_P_08;
+

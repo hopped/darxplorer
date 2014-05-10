@@ -1,0 +1,1061 @@
+\documentclass{acmtrans2m}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc} 
+\usepackage{amsmath}
+\usepackage{algorithm2e}
+\usepackage{color}
+\usepackage{listings} 
+\newcommand{\hervorheben}{\color{red}}%
+\newenvironment{algorithmic}{%
+\renewenvironment{algocf}[1][h]{}{}% pass over the floating stuff
+\algorithm
+}{%
+\endalgorithm
+}
+\usepackage[pdftex]{graphicx}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newdef{definition}[theorem]{Definition}
+\newdef{remark}[theorem]{Remark}
+           
+\markboth{Dennis Hoppe}{DARXplorer 2.0 -- User Documentation}
+
+\title{DARXplorer 2.0 -- User Documentation}
+            
+\author{DENNIS HOPPE\\
+      Bauhaus-University Weimar 
+}
+
+\lstset{language=Ada,numbers=left,frame=none,basicstyle=\footnotesize,breaklines,tabsize=2,captionpos=b,prebreak={\hbox{ $\rightarrow$}},postbreak={\hbox{$\hookrightarrow$ }},showstringspaces=false}
+            
+\begin{abstract}
+DARXplorer supports the differential cryptanalysis of primitives which 
+use a mixture of addition, rotation and xor. DARXplorer attempts to find 
+good xor differences. The two main use cases for DARXplorer are
+aiding the designers of new primitives to defend against attacks and
+analyzing existing primitives to find attacks.
+
+Cryptanalysts are often confronted with new primitives demanding new 
+tools for analyzation. DARXplorer offers a convenient way to describe
+such a primitive directly in Ada at minimal costs. The comprehensive analyzing
+framework including extensive logging mechanisms is already at ones
+feet.
+\end{abstract}
+
+\category{...}{...}{...}
+%\terms{...}             
+%\keywords{...}
+      
+\begin{document}
+    
+\maketitle
+
+%
+% EINLEITUNG
+%
+\section{Introduction}
+\label{section:einleitung}
+
+\textit{DARXplorer} was one of the MSL laboratory projects in the summer term 2008.
+Goal of the project was to create a framework supporting the development of the block 
+cipher \textit{Threefish} used in the hash function \textit{Skein} \cite{Whiting:2009p11767}.
+Threefish based on a mixture of addition modulo $2^{64}$, rotation and XOR.
+
+Addition, rotation and xor are low-level operations which run very fast on almost all computer platforms. Not surprisingly, many symmetric cryptosystems make intense use of these operations – and some even use these three operations exclusively, e.g., the Helix/Phelix family of authenticating stream ciphers \cite{Whiting:2003p12154,Whiting:2005p2725}. As it turned out, the Achilles heel of these primitives was some vulnerability to differential cryptanalysis, mostly based on XOR differences \cite{Paul2005,Wu2006}.
+
+When analyzing a given primitive of this type, searching for good xor differences appears to be the way to go. Here, good means that the probability of differential propagation is not too low. On the other hand, when designing a new primitive of this type, one must analyze such attacks. Ideally, the designer should show that the probability of any differential propagation is too low for an attack. In this context, one needs to search for the best xor difference, i.e., for an xor difference with most probable differential propagation. If the probability is just too low, the designer can make a strong point that the primitive is secure against this type of attack. DARXplorer attempts to find good xor differences.
+
+Besides supporting the development of new primitives, DARXplorer's second goal is to find 
+attacks against existing primitives like \textit{SHA-256}. For that reason, DARXplorer
+was enhanced in a consecutive research project in the summer term 2009 to allow the 
+analyzation of arbitrary primitives so long as they use a mixture of the previous stated 
+mixture of operations.
+
+\section{Techniques to find good differences}\label{chapter:techniques}
+DARXplorer implements four different techniques to find "good" 
+characteristics. Usually, the differential behavior of a low 
+Hamming-weight difference is better predictable (i.e., with a higher 
+probability) than the behavior of a "random" difference. We just start
+with such a low Hamming-weight difference (1, 2, 3 or 4) and try all
+possible input differences with the chosen Hamming-weight. The four
+approaches differ in the way, they pursue differences from round
+to round.
+
+\begin{describe}{{\em Pedantic Petra\/}:}
+\item[{\em Lazy Laura\/}:]
+Laura just "guesses" that the the addition behaves like the xor, 
+difference-wise, i.e., there are no carry bits generated. Starting with 
+low Hamming-weight differences, it is very easy for her to compute the 
+output difference (running the primitive in forward direction). The 
+benefit of Laura’s approach is that it is very efficient and can be 
+implemented for any number of rounds (for 80 rounds, or for 800 rounds).
+  
+\item[{\em Greedy Grete\/}:]
+Laura just assumes no carry bits are generated. This is likely to 
+exclude many "good" characteristics – a carry bit in one round leads 
+to another difference in another round and may ultimately lead to a 
+better (more probable) difference at the end. Grete optimizes locally. 
+Given some round’s input differences in some round, she enumerates all 
+the most probable output differences. All of them are considered as 
+the input difference for the next round. If there is more than one 
+optimal difference, Grete’s run time will grow exponentially with the 
+number of rounds.
+
+\item[{\em Pedantic Petra\/}:]
+Petra goes a step further than Grete. Given an input difference, she 
+enumerates all output differences with a nonzero probability. Recall 
+that this is feasible as long as the Hamming-weight of the difference 
+is low. As the number of possible differences is growing fast, and 
+the Hamming-weight also grows with the number of rounds, this can be 
+done only for a few rounds. Petra is pedantic, but not stupid. A naive 
+approach would make her deal with a huge number of extremely 
+low-probable characteristics. But Petra sorts her intermediate results 
+(characteristics with less than the desired number of rounds) by 
+their probability. She always proceeds with the most probable 
+intermediate result. Specifically, when she comes to the last round 
+she just uses Grete’s approach.
+
+\item[{\em Fuzzy Fiona\/}:]
+Fiona's strategy is a new cryptoanalytical approach. Assuming that
+the input for a S-Box, i.e. for a non-linear function, is \texttt{100101}.
+The S-Box describes a mapping from 6 bits to 4 bits. However, 
+the output can only be defined exactly for particular bits: \texttt{1??0},
+whereby question marks represent bits, whose value cannot be
+clearly fixed. Even so, one can specify the probability, that a bit
+equals \texttt{1}. Now, rewriting the output with probabilities results
+in \texttt{($1$, $\frac{1}{4}$, $\frac{2}{3}$, $0$)}. The third bit 
+takes on value \texttt{1} with probability $\frac{2}{3}$, and the last bit
+is definitly \texttt{0} and is never equals \texttt{1}.
+Pursuing such probabilities while computing a hash digest, let one
+employ predictions about the output, if the probability is distinct from $\frac{1}{2}$.
+\end{describe}
+
+\vfill
+
+%\section{Prerequisites}\label{chapter:pre}
+%All you need is \textit{GNAT}, the free-software compiler for Ada in version 4.3 
+%or higher. If you are running an UNIX based operating system like Ubuntu, you can
+%get the current GNAT compiler simply by typing in your preferred terminal:\\ \\
+%\noindent\hspace*{12mm}%
+%\texttt{\$ sudo apt-get install gnats}\\
+%\noindent\hspace*{12mm}%
+%\texttt{\$ gnatmake --version}\\ \\
+%You should see the following output:\\ \\
+%\noindent\hspace*{12mm}%
+%\texttt{GNATMAKE 4.3.4}\\
+%\noindent\hspace*{12mm}%
+%\texttt{Copyright (C) 1995-2007, Free Software Foundation, Inc.}\\
+%\noindent\hspace*{12mm}%
+%\texttt{This is free software; see the source for copying conditions.}\\
+%\noindent\hspace*{12mm}%
+%\texttt{There is NO warranty; not even for MERCHANTABILITY or}\\ 
+%\noindent\hspace*{12mm}%
+%\texttt{FITNESS FOR A PARTICULAR PURPOSE.}\\
+
+%DARXplorer does not use any GNAT-specific features. It is likely, that
+%DARXplorer will compile with GNAT versions prior to 4.3. We have tested
+%the current distribution successfully under \textit{Ubuntu} 9.04 with GNAT 4.3 installed.
+%Further on, DARXplorer is running under \textit{MAC OS X} (Version 10.5.x)
+%with GNAT GPL 2009 installed.
+
+%For the development of DARXplorer are no special tools required.
+
+%\section{Installation}\label{chapter:installation}
+
+%After the successful installation of GNAT you are ready to download DARXplorer.
+%Checkout the sources from the repository to your local folder by typing\\ \\
+%\noindent\hspace*{12mm}%
+%\texttt{\$ svn co svn://medsec.medien.uni-weimar.de/darx}\\ \\
+%Please have your username and password on tap.
+
+%In the checkout directory, you will find a \texttt{Makefile} and a shell script named \texttt{build.sh}.
+%As a end-user, you can ignore the former and use the latter.
+
+%\section{Usage}
+%If you want to create a DARXplorer instance incorporating Threefish 256, 
+%you have to execute the following commands in the root of the distribution:\\ \\
+%\noindent\hspace*{12mm}%
+%\texttt{\$ ./build.sh examples/Threefish256.adb}\\ \\
+
+%By calling the shell script \texttt{build.sh} without arguments or by means of 
+%\texttt{-\,-usage} as a parameter, it will display some useful help on the command line.
+
+
+\section{Cryptographic Primitives}
+The DARXplorer \texttt{examples} folder contains declarations of cryptographic primitives in Ada, that are based on a mixture of addition, rotation and XOR. It is a good place to get started, if you want to learn, how to write descriptions by yourself. At present, we included the following primitives:
+\begin{itemize}
+	\item \ Blake-32
+	\item \ Blake-64
+	\item \ Blue Midnight Wish 256
+	\item \ Blue Midnight Wish 512
+	\item \ Edon-R 256
+	\item \ Edon-R 512
+	\item \ Salsa-20
+	\item \ SHA-256
+	\item \ SHA-512
+	\item \ Tiny Encryption Algorithm (TEA)
+	\item \ Threefish-256
+	\item \ Threefish-512
+	\item \ Threefish-1024
+\end{itemize}
+
+Both \textit{Blue Midnight Wish} and \textit{Threefish} are also covered with revised versions including changes made by submitting tweaked primitives to the second round of the NIST competition.
+
+In the next chapters you will learn how to write your DARXplorer-adapted version of a
+cryptographic primitive, verify it and analyze it.
+
+\clearpage
+
+\section{A small example}
+Suppose you want to integrate \textit{TEA} in DARXplorer. Your source file for encryption could look like this:
+
+\begin{lstlisting}
+with DXPL_Types_32; use DXPL_Types_32;
+
+procedure TEA is
+  TEA_Delta : Word := 16#9E3779B9#;
+  TEA_Sum   : Word := 16#00000000#;
+
+  procedure DXPL_Process
+     (Message : in out Word_Array_2;
+      Key     : in Word_Array_4 := (others => 16#0#)) is
+  begin
+     TEA_Sum := TEA_Sum + TEA_Delta;
+     Message (0) := Message (0) +
+                    ((Shift_Left (Message (1), 4) + Key (0)) xor
+                     (Message (1) + TEA_Sum) xor
+                     (Shift_Right (Message (1), 5) + Key (1)));
+     Message (1) := Message (1) +
+                    ((Shift_Left (Message (0), 4) + Key (2)) xor
+                     (Message (0) + TEA_Sum) xor
+                     (Shift_Right (Message (0), 5) + Key (3)));
+  end DXPL_Process;
+
+begin
+ Configuration
+    (DXPL_ALGORITHM   => "Tiny Encryption Algorithm (TEA)",
+     DXPL_ROUNDS      => 32,
+     DXPL_TERMINATION => 256);
+
+ Test_Vector
+    (DXPL_MESSAGE => (0 => 16#01234567#, 1 => 16#89abcdef#),
+     DXPL_KEY     => (0 => 16#00112233#, 1 => 16#44556677#,
+                      2 => 16#8899aabb#, 3 => 16#ccddeeff#),
+     DXPL_DIGEST  => (0 => 16#126c6b92#, 1 => 16#c0653a3e#));
+end TEA;
+\end{lstlisting}
+
+As you can see, there is only one main procedure named \texttt{DXPL\_Process}, 
+which deals with the encryption of an input, here \texttt{Message}. TEA
+normally iterates the statements declared in \texttt{DXPL\_Process} 32 times
+to perform an encryption. To integrate such iteration, you have to indicate
+this information as \textit{rounds}. The procedure call to \texttt{Configuration} 
+in line 23 takes this actually as a parameter.
+
+In order to verify your definition of TEA, you have to add at least one test 
+vector (see line 29).
+
+The description of TEA above covers everything to incorporate the primitive
+into DARXplorer.
+
+\section{Terminology}
+You've just learned, that statements of exactly one iteration of a cryptographic
+primitive have to be defined in \texttt{DXPL\_Process}. It is one of three key
+procedures and is obligatory. Procedures, that DARXplorer analyzes are:
+
+\begin{describe}{{\em DXPL \_Initialize\/}:}
+\item[{\texttt DXPL\_Process\/}:] You have to implement the round function
+of a cryptographic primitive here. It will be called once in each round. It is mandatory.
+
+\item[\texttt{DXPL\_Initialize\/}:] If you have to assign initial values or set the key, here you go. The declaration of this procedure is optional. It will be called once before any round is processed.
+
+\item[\texttt{DXPL\_Finalize\/}:] The same goes for this procedure, but will be called only once after
+all rounds are processed.
+\end{describe}
+
+All three procedures have the following limitations in common: It is allowed to 
+access functions, procedures and variables globally defined. While declaring 
+the declarative part of the procedure, only basic declarations like number or 
+type declarations are allowed. Declaring subprograms, generic declarations 
+et cetera is forbidden.
+
+Statements are limited, as well. You are allowed to apply \texttt{declare} declarations
+and any kind of mathematical expressions. Declaring loops is instead restricted
+to \texttt{for} loops. Stating ranges is only allowed by means of integers. To capture the whole
+syntax of a valid DARXplorer-input specification, see the attached appendix.
+
+Functions, that are declared outside of these three procedures are not analyzed.
+However, each additional procedure is analyzed the same way as the above named procedures
+and underlies the same limitations.
+
+\bigbreak
+
+After declaring all subprograms and variables you need for your primitive, the \texttt{begin}
+declaration is mandatory. Here, you have to call the procedure \texttt{Configu\-ra\-tion} and
+append at least one test vector by invoking \texttt{Test\_Vector}. Both procedures are
+defined in the package \texttt{DXPL\_Types\_32} resp. \texttt{DXPL\_Types\_64}.
+
+\begin{describe}{{\em DXPL \_Initialize\/}:}
+\item[\texttt{Configuration\/}:] Parameters are a user-defined description of the primitive, the number of rounds/iterations, \texttt{DXPL\_Process} should be called and a value specifying the termination
+of an analyzation. A given integer \texttt{a} will be interpreted as $2^{-a}$. This procedure has to
+be called once.
+\item[\texttt{Test\_Vector\/}:] You are able to append as much test vectors as you like, but one
+is obligatory to verify the primitive. Test vectors consist of an input message, an optional key and
+the output digest.
+\end{describe}
+
+Last but not least, we provide you with data types and operations in 32/64 bit, that are
+compatible with DARXplorer. They have to be integrated with\\ \\
+\noindent\hspace*{12mm}%
+\texttt{with DXPL\_Types\_32;}\\
+or\\
+\noindent\hspace*{12mm}%
+\texttt{with DXPL\_Types\_64;}\\ \\
+
+Listing \ref{listing:types} shows a short survey of utilizable types and operations
+included in these packages.
+
+\vfill
+
+\begin{lstlisting}[label=listing:types,language=Ada,caption=DXPL\_Types\_32.ads]
+type    Word_Array    is array (Integer range <>) of Word;
+subtype Word_Array_80 is Word_Array (0 .. 79);
+subtype Word_Array_64 is Word_Array (0 .. 63);
+subtype Word_Array_32 is Word_Array (0 .. 31);
+subtype Word_Array_16 is Word_Array (0 .. 15);
+subtype Word_Array_8  is Word_Array (0 ..  7);
+subtype Word_Array_4  is Word_Array (0 ..  3);
+subtype Word_Array_2  is Word_Array (0 ..  2);
+
+Rounds : Positive;
+
+function Rotate_Left  (Value : in Word; Amount : in Natural)
+  return Word;
+
+function Rotate_Right (Value : in Word; Amount : in Natural)
+  return Word;
+
+function Shift_Left  (Value : in Word; Amount : in Natural)
+ return Word;
+
+function Shift_Right (Value : in Word; Amount : in Natural)
+  return Word;
+\end{lstlisting}
+
+Variable \texttt{Rounds}, declared in line 10, can be used to represent
+the current round number to access for example a concrete round constant.
+Please keep in mind, that the first round number is set to 1 and most 
+arrays begin with 0.
+
+You can perform the following operations on \texttt{Word}: $+$, $-$, mod, $*$,
+xor, and, or and not.
+ 
+\bigbreak
+ 
+The package \texttt{DXPL\_Types\_*} makes it possible to verify in advance,
+that your code is a valid Ada source. You can create both versions of the package
+by invoking the shell script \texttt{create\_types.sh} in the root of the distribution 
+folder, which takes the path of your primitive sources, e.g. \texttt{my\_scripts}
+as a parameter:\\ \\
+\noindent\hspace*{12mm}%
+\texttt{./create\_types.sh my\_scripts}\\
+
+You are encouraged to check, that your file is a valid Ada file.
+
+\vfill
+
+\section{Incorporating BLAKE-32 into DARXplorer}
+Let's start with transferring the reference implementation of \texttt{BLAKE-32} in C into
+a DARXplorer-valid source, that can be analyzed.
+
+We know, that BLAKE-32 iterates ten times and uses 32 bit types. We
+start with a template according to listing \ref{listing:template}.
+
+\begin{lstlisting}[caption=DARXplorer template,label=listing:template]
+with DXPL_Types_32;  use DXPL_Types_32;
+
+procedure BLAKE_32 is
+
+begin
+  Configuration
+     (DXPL_ALGORITHM   => "BLAKE-32",
+      DXPL_ROUNDS      => 10,
+      DXPL_TERMINATION => 256);
+
+end BLAKE_32;
+\end{lstlisting}
+
+BLAKE uses a permutation, which is represented by a two-dimensional array.
+To access the correct permutation, constants are used. In addition, initial values
+have to be set. The reference C code is presented in listing \ref{listing:c1},
+the corresponding Ada code in listing \ref{listing:ada1}.
+
+
+\begin{lstlisting}[language=C,caption={Declaration of permutation, constants and initial values of BLAKE-32},label=listing:c1]
+/*
+  the 10 permutations of {0,...15}
+*/
+static const unsigned char sigma[][16] = {
+ {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15 },
+ { 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 },
+ { 11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4 },
+ {  7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8 },
+ {  9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13 },
+ {  2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9 },
+ { 12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11 },
+ { 13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10 },
+ {  6, 15, 14,  9, 11,  3,  0,  8, 12,  2, 13,  7,  1,  4, 10,  5 },
+ { 10,  2,  8,  4,  7,  6,  1,  5, 15, 11,  9, 14,  3, 12, 13 , 0 }, 
+ {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15 },
+ { 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 },
+ { 11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4 },
+ {  7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8 },
+ {  9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13 },
+ {  2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9 },
+ { 12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11 },
+ { 13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10 },
+ {  6, 15, 14,  9, 11,  3,  0,  8, 12,  2, 13,  7,  1,  4, 10,  5 },
+ { 10,  2,  8,  4,  7,  6,  1,  5, 15, 11,  9, 14,  3, 12, 13 , 0 }
+};
+
+/*
+  constants for BLAKE-32 and BLAKE-28
+*/
+static const u32 c32[16] = {
+    0x243F6A88, 0x85A308D3,
+    0x13198A2E, 0x03707344,
+    0xA4093822, 0x299F31D0,
+    0x082EFA98, 0xEC4E6C89,
+    0x452821E6, 0x38D01377,
+    0xBE5466CF, 0x34E90C6C,
+    0xC0AC29B7, 0xC97C50DD,
+    0x3F84D5B5, 0xB5470917 
+};
+
+/*
+  initial values ( IVx for BLAKE-x)
+*/
+static const u32 IV32[8]={
+  0x6A09E667, 0xBB67AE85,
+  0x3C6EF372, 0xA54FF53A,
+  0x510E527F, 0x9B05688C,
+  0x1F83D9AB, 0x5BE0CD19
+};
+\end{lstlisting}
+
+
+\begin{lstlisting}[caption={Integrating permutation, constants and initial values to Ada},label=listing:ada1]
+with DXPL_Types_32;  use DXPL_Types_32;
+
+procedure BLAKE_32 is
+  ----------------------------------------
+  --  The 10 permutations of (0,..,15}  --
+  ----------------------------------------
+  subtype Permute_Positive is Natural range 0 .. 15;
+  type TwoD_Array is array (0 .. 19, 0 .. 15) of Permute_Positive;
+  SIGMA : TwoD_Array :=
+  (( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15),
+   (14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3),
+   (11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4),
+   ( 7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8),
+   ( 9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13),
+   ( 2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9),
+   (12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11),
+   (13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10),
+   ( 6, 15, 14,  9, 11,  3,  0,  8, 12,  2, 13,  7,  1,  4, 10,  5),
+   (10,  2,  8,  4,  7,  6,  1,  5, 15, 11,  9, 14,  3, 12, 13 , 0), 
+   ( 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15),
+   (14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3),
+   (11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4),
+   ( 7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8),
+   ( 9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13),
+   ( 2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9),
+   (12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11),
+   (13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10),
+   ( 6, 15, 14,  9, 11,  3,  0,  8, 12,  2, 13,  7,  1,  4, 10,  5),
+   (10,  2,  8,  4,  7,  6,  1,  5, 15, 11,  9, 14,  3, 12, 13 , 0)
+  );
+
+   -------------------------------------------
+   --  Constants for BLAKE-32 and BLAKE-28  --
+   -------------------------------------------
+   c32 : Word_Array_16 :=
+     (16#243F6A88#,
+      16#85A308D3#,
+      16#13198A2E#,
+      16#03707344#,
+      16#A4093822#,
+      16#299F31D0#,
+      16#082EFA98#,
+      16#EC4E6C89#,
+      16#452821E6#,
+      16#38D01377#,
+      16#BE5466CF#,
+      16#34E90C6C#,
+      16#C0AC29B7#,
+      16#C97C50DD#,
+      16#3F84D5B5#,
+      16#B5470917#); 
+
+   -------------------------------------------
+   --  Initial values ( IV32for BLAKE-32)  --
+   -------------------------------------------
+   IV32 : Word_Array_8 :=
+     (16#6A09E667#,
+      16#BB67AE85#,
+      16#3C6EF372#,
+      16#A54FF53A#,
+      16#510E527F#,
+      16#9B05688C#,
+      16#1F83D9AB#,
+      16#5BE0CD19#);
+     
+begin
+  Configuration
+     (DXPL_ALGORITHM   => "BLAKE-32",
+      DXPL_ROUNDS      => 10,
+      DXPL_TERMINATION => 256);
+
+end BLAKE_32;
+\end{lstlisting}
+
+\vfill
+
+Next up on the agenda is handling the ten iterations of BLAKE-32. In each iteration,
+there are several calls to a procedure named \texttt{G32}. It would be a good
+idea to convert it to Ada, first. Both coming listings \ref{listing:c2} and \ref{listing:ada2}
+show the transformation, whereby the latter includes all former conversions.
+
+\begin{lstlisting}[language=C,caption={Declaration of G32 in C},label=listing:c2]
+u32 v[16];
+u32 m[16];
+int round;
+  
+#define ROT32(x,n) (((x)<<(32-n))|( (x)>>(n)))
+#define ADD32(x,y)   ((u32)((x) + (y)))
+#define XOR32(x,y)    ((u32)((x) ^ (y)))
+
+#define G32(a,b,c,d,i)\
+  do { \
+    v[a] = ADD32(v[a],v[b])+XOR32(m[sigma[round][2*i]], c32[sigma[round][2*i+1]]);\
+    v[d] = ROT32(XOR32(v[d],v[a]),16);\
+    v[c] = ADD32(v[c],v[d]);\
+    v[b] = ROT32(XOR32(v[b],v[c]),12);\
+    v[a] = ADD32(v[a],v[b])+XOR32(m[sigma[round][2*i+1]], c32[sigma[round][2*i]]);\
+    v[d] = ROT32(XOR32(v[d],v[a]), 8);\
+    v[c] = ADD32(v[c],v[d]);\
+    v[b] = ROT32(XOR32(v[b],v[c]), 7);\
+  } while (0)
+\end{lstlisting}
+
+
+\begin{lstlisting}[caption={Incorporating G32 to Ada, whereby the permutation, the
+constants and the initial values are omitted for readability},label=listing:ada2]
+with DXPL_Types_32;  use DXPL_Types_32;
+
+procedure BLAKE_32 is
+  ----------------------------------------
+  --  The 10 permutations of (0,..,15}  --
+  ----------------------------------------
+  subtype Permute_Positive is Natural range 0 .. 15;
+  type TwoD_Array is array (0 .. 19, 0 .. 15) of Permute_Positive;
+  SIGMA : TwoD_Array := (..);
+
+  -------------------------------------------
+  --  Constants for BLAKE-32 and BLAKE-28  --
+  -------------------------------------------
+  c32 : Word_Array_16 := (..); 
+
+  -------------------------------------------
+  --  Initial values ( IV32for BLAKE-32)  --
+  -------------------------------------------
+  IV32 : Word_Array_8 := (..);
+  
+  -----------
+  --  G32  --
+  ------------
+
+  M : Word_Array_16;
+
+  procedure G32
+    (A, B, C, D, I : in Integer;
+     Message       : in out Word_Array_16) is
+  begin
+    Message(A) := (Message(A) + Message(B)) + 
+                  (M(SIGMA(Rounds-1, 2*I)) xor
+                  c32 (SIGMA (Rounds-1, 2*I+1)));
+    Message(D) := Rotate_Right (Message(D) xor Message(A),16);
+    Message(C) := Message(C) + Message(D);
+    Message(B) := Rotate_Right (Message(B) xor Message(C),12);
+    Message(A) := (Message(A) + Message(B)) +
+                  (M(SIGMA(Rounds-1, 2*I+1)) xor
+                  c32 (SIGMA (Rounds-1, 2*I)));
+    Message(D) := Rotate_Right (Message(D) xor Message(A), 8);
+    Message(C) := (Message(C) + Message(D));
+    Message(B) := Rotate_Right (Message(B) xor Message(C), 7);
+  end G32;
+     
+begin
+  Configuration
+     (DXPL_ALGORITHM   => "BLAKE-32",
+      DXPL_ROUNDS      => 10,
+      DXPL_TERMINATION => 256);
+
+end BLAKE_32;
+\end{lstlisting}
+
+According to listing \ref{listing:ada2}, we were required to replace the global
+variable \texttt{u32 v[16]} with \texttt{Message}. \texttt{Message} serves as
+a variable, which keeps always the current state of transformation. You have
+to assign your initial value to \texttt{Message}. Further on, you have to assign 
+changes in your primitive always to it. This is currently a minor drawback in
+the design of DARXplorer.
+
+As you can see in listing \ref{listing:ada2}, line 32, we use the variable
+\texttt{Rounds} to refer to the current round number. You can consider
+\texttt{Rounds} as the iteration index beginning by 1. The variable \texttt{M}
+is placed to keep the initial input message. It will be initialized in \texttt{DXPL\_Initialize}, 
+as listing \ref{listing:ada3} illustrates. We omitted the \textit{salt}, see lines
+18 till 22, and removed the special treatment of the last block, see line 27 and
+32 till 36.
+
+\begin{lstlisting}[caption={DXPL\_Initialize assigns the original message
+to the variable M and assigns the initial value to Message. For simplicity
+and readability, we omitted the rest of the template.},label=listing:ada3]
+   ----------------------------------
+   --  Initialization of BLAKE-32  --
+   ----------------------------------
+
+   procedure DXPL_Initialize (Message : in out Word_Array_16) is
+   begin
+     --  store the original message
+     M(0 .. 15) := Message (0 .. 15);
+
+     Message( 0) := IV32(0);
+     Message( 1) := IV32(1);
+     Message( 2) := IV32(2);
+     Message( 3) := IV32(3);
+     Message( 4) := IV32(4);
+     Message( 5) := IV32(5);
+     Message( 6) := IV32(6);
+     Message( 7) := IV32(7);
+     -- removed the salt
+     --  Message( 8) := salt32 (0) xor c32(0);
+     --  Message( 9) := salt32 (1) xor c32(1);
+     --  Message(10) := salt32 (2) xor c32(2);
+     --  Message(11) := salt32 (3) xor c32(3);
+     Message( 8) := c32(0);
+     Message( 9) := c32(1);
+     Message(10) := c32(2);
+     Message(11) := c32(3);
+     -- if special case t=0 for the last block
+     Message(12) := c32(4);
+     Message(13) := c32(5);
+     Message(14) := c32(6);
+     Message(15) := c32(7);
+     -- else
+     --  Message(12) := t32(0) xor c32(4);
+     --  Message(13) := t32(0) xor c32(5);
+     --  Message(14) := t32(1) xor c32(6);
+     --  Message(15) := t32(1) xor c32(7);
+   end DXPL_Initialize;
+\end{lstlisting}
+
+\vfill
+
+After declaring the permutation, round constants, the initial value and
+the \textit{G32} procedure, we defined \texttt{DXPL\_Initialize}. We are
+now ready to describe the statements for one iteration of BLAKE-32
+in \texttt{DXPL\_Process}. As ever, listing \ref{listing:c4} shows the 
+reference implementation in C and the following listing \ref{listing:ada4}
+refers to the Ada conversion.
+
+
+\begin{lstlisting}[language=C,caption={Declaration of ten rounds
+of BLAKE-32 in C},label=listing:c4]
+  /*  do 10 rounds */
+  for(round=0; round < 10; ++round) {
+    /* column step */
+    G32( 0, 4, 8,12, 0);    
+    G32( 1, 5, 9,13, 1);
+    G32( 2, 6,10,14, 2);
+    G32( 3, 7,11,15, 3);    
+
+    /* diagonal step */
+    G32( 0, 5,10,15, 4);
+    G32( 1, 6,11,12, 5);
+    G32( 2, 7, 8,13, 6);
+    G32( 3, 4, 9,14, 7);
+  }
+\end{lstlisting}
+
+\vfill
+
+\begin{lstlisting}[caption={Declaring one round of BLAKE in Ada. For simplicity
+and readability, we omitted the rest of the template.},label=listing:ada3]
+   -------------------------------------
+   --  Process one round of BLAKE-32  --
+   -------------------------------------
+
+   procedure DXPL_Process (Message : in out Word_Array_16) is
+   begin
+     --  column step
+     G32 (Message, 0, 4,  8, 12, 0);
+     G32 (Message, 1, 5,  9, 13, 1);
+     G32 (Message, 2, 6, 10, 14, 2);
+     G32 (Message, 3, 7, 11, 15, 3);    
+
+     --  diagonal step
+     G32 (Message, 0, 5, 10, 15, 4);
+     G32 (Message, 1, 6, 11, 12, 5);
+     G32 (Message, 2, 7,  8, 13, 6);
+     G32 (Message, 3, 4,  9, 14, 7);
+   end DXPL_Process;
+\end{lstlisting}
+
+As you can see, there is nothing special about declaring ten rounds of
+BLAKE-32. Please keep in mind, that \texttt{DXPL\_Process} only represents
+one round of BLAKE. The \texttt{for} loop is omitted, but we conserved the
+value of 10 in our \texttt{Configuration} (see listing \ref{listing:template}).
+
+Finally, we could have declared \texttt{DXPL\_Finalize}, but we do not 
+need it. Because all changes go directly into the variable \texttt{Message},
+it represents automatically the digest after ten rounds.
+
+\bigbreak
+
+For verification, we need to append at least one test vector. A valid test
+vector is declared in listing \ref{listing:testvector}. The complete conversion of BLAKE-32 can be found in the folder \texttt{examples}.
+
+\begin{lstlisting}[caption={Showing a test vector declaration in Ada},label=listing:testvector]
+   --  Input Message: "abc"
+  Test_Vector
+     (DXPL_MESSAGE => (0  => 16#64636261#, 1  => 16#00000000#,
+                       2  => 16#00000000#, 3  => 16#00000000#,
+                       4  => 16#00000000#, 5  => 16#00000000#,
+                       6  => 16#00000000#, 7  => 16#00000000#,
+                       8  => 16#00000000#, 9  => 16#00000000#,
+                       10 => 16#00000000#, 11 => 16#00000000#,
+                       12 => 16#00000000#, 13 => 16#00000000#,
+                       14 => 16#00000018#, 15 => 16#00000000#),
+      DXPL_DIGEST  => (0  => 16#718cf24e#, 1  => 16#7a7d593f#,
+                       2  => 16#a88f9c24#, 3  => 16#7f7311de#,
+                       4  => 16#f5502ffa#, 5  => 16#c28a5324#,
+                       6  => 16#50c801bc#, 7  => 16#81a885ff#,
+                       8  => 16#6507bf2a#, 9  => 16#ae8fd04d#,
+                       10 => 16#a8e70a9b#, 11 => 16#5d2fc5d6#,
+                       12 => 16#4b2f6a63#, 13 => 16#72778e0f#,
+                       14 => 16#93ec20cf#, 15 => 16#152ed8cc#));
+\end{lstlisting}
+
+
+\section{Usage and Validation}
+Subsequent to the creation of a new Ada source file, you have to type\\ \\
+\noindent\hspace*{12mm}%
+\texttt{./build.sh \$PATH\_TO\_YOUR\_SCRIPT}\\
+
+Don't miss to replace the placeholder \$PATH\_TO\_YOUR\_SCRIPT with the
+actual path to your script including the filename. If the shell script 
+isn't running, give it the following rights and try again\\ \\
+\noindent\hspace*{12mm}%
+\texttt{chmod u+x build.sh}\\
+
+The framework analyses your description. If it is valid and 
+applicable to DARXplorer, it will be integrated into the framework
+and automatically validated with the aid of test vectors. Remember, that
+you have to provide test vectors by yourself.
+
+The output of the shell script might look like this\\ \\
+\noindent\hspace*{12mm}%
+\texttt{\$./darxplorer.sh examples/threefish256.adb}\\
+\noindent\hspace*{12mm}%
+\texttt{++ The framework will be compiled .. FINISHED}\\
+\noindent\hspace*{12mm}%
+\texttt{++ DARXplorer will be compiled by means of your description}\\
+\noindent\hspace*{12mm}%
+\texttt{\ \ \  .. FINISHED}\\
+\noindent\hspace*{12mm}%
+\texttt{DARXplorer has validated your description.}\\
+\noindent\hspace*{12mm}%
+\texttt{The application 'darxplorer' is ready to run.}\\
+\noindent\hspace*{12mm}%
+
+If something went wrong, DARXplorer will tell you. The newly created DARXplorer executable allows you to analyze the described primitive, finally. If you execute \texttt{darxplorer} without any arguments, the framework validates your description on the basis of provided test vectors, again.
+
+
+\section{Analyzation}
+You've learned about several techniques to analyze cryptographic primitives based on 
+a mixture of addition, rotation and XOR in chapter \ref{chapter:techniques}. Now, after
+you've successfully validated your primitive description, you can analyze it. By typing\\ \\
+\noindent\hspace*{12mm}%
+\texttt{./darxplorer -\,-usage}\\
+
+usage information is print to the command line. You are able to log results and
+determine, which technique you want to use.
+
+Analyzation only takes place, if you marked regions in your primitive description for
+analyzation. You have to implement this feature by means of annotations. We provide
+you for one thing \texttt{BEGIN} to start the analyzation and for another thing 
+\texttt{END} to stop it. Both annotations have to be inserted as a Ada comment
+(\texttt{-\,-}) followed by a rhombus. They are allowed only in procedures. Usage
+according to listing \ref{listing:annotations} and \ref{listing:annotations2}.
+
+\vfill
+
+\begin{lstlisting}[caption={Annotations for analyzation encapsulate the colummn step of BLAKE-32. Please keep in mind, that annotations work only within the defined procedure. Actually, using annotations like this has no effects.},label=listing:annotations]
+   -------------------------------------
+   --  Process one round of BLAKE-32  --
+   -------------------------------------
+
+   procedure DXPL_Process (Message : in out Word_Array_16) is
+   begin
+     --  column step
+     --# BEGIN
+     G32 (Message, 0, 4,  8, 12, 0);
+     G32 (Message, 1, 5,  9, 13, 1);
+     G32 (Message, 2, 6, 10, 14, 2);
+     G32 (Message, 3, 7, 11, 15, 3);    
+     --# END
+
+     --  diagonal step
+     G32 (Message, 0, 5, 10, 15, 4);
+     G32 (Message, 1, 6, 11, 12, 5);
+     G32 (Message, 2, 7,  8, 13, 6);
+     G32 (Message, 3, 4,  9, 14, 7);
+   end DXPL_Process;
+\end{lstlisting}
+
+
+\begin{lstlisting}[caption={Correct usage of annotations to analyze a global procedure. Minor drawback is, that you cannot analyze the column steps without analyzing the diagonal steps, too.},label=listing:annotations2]
+
+   M : Word_Array_16;
+
+  procedure G32
+    (A, B, C, D, I : in Integer;
+     Message       : in out Word_Array_16) is
+  begin
+    --# BEGIN
+    Message(A) := (Message(A) + Message(B)) + 
+                  (M(SIGMA(Rounds-1, 2*I)) xor
+                  c32 (SIGMA (Rounds-1, 2*I+1)));
+    Message(D) := Rotate_Right (Message(D) xor Message(A),16);
+    Message(C) := Message(C) + Message(D);
+    Message(B) := Rotate_Right (Message(B) xor Message(C),12);
+    Message(A) := (Message(A) + Message(B)) +
+                  (M(SIGMA(Rounds-1, 2*I+1)) xor
+                  c32 (SIGMA (Rounds-1, 2*I)));
+    Message(D) := Rotate_Right (Message(D) xor Message(A), 8);
+    Message(C) := (Message(C) + Message(D));
+    Message(B) := Rotate_Right (Message(B) xor Message(C), 7);
+  end G32;
+     --# END
+   end G32;
+\end{lstlisting}
+
+\section{Evaluation}
+If you chosed to generate log files, you will find them after processing in the
+folder \texttt{DARX\_Logs}. For each primitive, a subfolder will be created containing
+the results for the chosen technique. Each log file is per default a \textit{CSV} file. 
+Log files are numbered ascending. The highest number contains the best results.
+An example can be viewed in listing \ref{listing:logfile}.
+
+\begin{lstlisting}[language=bash,caption={Excerpt from the log file for Threefish 256 in CSV file
+format, analyzed by Lazy Laura. For each stage, i.e. for each executed statement, is printed
+the current differential and the corresponding probability.},label=listing:logfile]
+--!  Copyright 2009;
+--!    Bauhaus-University Weimar, Germany;
+--!    Chair of Media Security / Stefan Lucks;
+--!;
+--!  This file was automatically created due;
+--!  analyzation with DARXplorer 2.0. It con-;
+--!  tains information about each stage of;
+--!  processing like the current round, stage,;
+--!  global and local probabilities and differentials.;
+--!;
+--!  DARXplorer 2.0 - Log File;
+--!;
+--!  Created on:  9-22-2009 16:15:15;
+--!;
+--!  Information about the hash function;
+--!  Name: Threefish 256;
+--!  Technique: Lazy Laura;
+--!  # of Rounds: 9;
+--!;
+--!  Initial Differential in Round 1;
+--!    0000_0000_0000_0008;
+--!    0000_0000_0000_0000;
+--!    0000_0000_0000_0000;
+--!    0000_0000_0000_0000;
+
+
+;Round; Stage; Global Prob.; Local Prob.; Ham. W.; Differentials;
+
+
+; 1; 1;     ;           5.0000E-01  [2^(-1)]; 1; 
+;;;;;;0000_0000_0000_0008; 
+;;;;;;0000_0000_0000_0008; 
+;;;;;;0000_0000_0000_0000; 
+;;;;;;0000_0000_0000_0000; 
+
+
+; 1; 2;     ;           1.0000E+00  [2^(-0)]; 2; 
+;;;;;;0000_0000_0000_0008; 
+;;;;;;0000_0000_0000_0008; 
+;;;;;;0000_0000_0000_0008; 
+;;;;;;0000_0000_0000_0000; 
+\end{lstlisting}
+
+We log the state after each statement is processed. Due to the drawback, that
+the variable \texttt{Message} has to keep the current state at any time, only 
+changes to \texttt{Message} are logged associated with a round number, hamming
+weight and a probability.
+
+\bigbreak
+
+If you wish to write your own output format, please consult the developer documentation.
+
+\vfill
+
+\bibliographystyle{acmtrans} % natdin
+\bibliography{acmtrans}
+
+\clearpage
+
+\section*{APPENDIX}
+\setcounter{section}{1}
+
+\medskip
+%\section{Supported syntax in DARXplorer}\label{chapter:syntax}
+Cryptographic primitives are written in Ada, but we limit the powerfulness of
+the programming language to simplify our parser. At the moment,
+we support the following syntax (shown in EBNF). No guarantee of completeness.
+
+\begin{lstlisting}[language=bash,numbers=none]
+main_program ::=
+  { <with-declaration> [ <use-declaration> ] } <package-declaration>
+  { <procedure-declaration> | <function_declaration>  | 
+    <variables-declaration> } begin { <begin-declaration> } end ";"
+
+with_declaration ::= 
+  with <identifier> { "." <identifier> } ";"
+ 
+numeric ::=
+  { "0" .. "9" }
+  
+identifier ::= (simplified)
+  "A" .. "Z" | "a" .. "z" | "_" | <numeric>
+
+use-declaration ::= 
+  use <identifier> { "." <identifier> } ";"
+  
+package_declaration ::=
+  package body <identifier> is
+
+procedure_declaration ::=
+  procedure <identifier> is | procedure <identifier> 
+  "(" <procedure_parameter_declaration> ")" is
+  begin <statements> end [ <identifier> ] ";"
+
+proc_parameter ::=
+  <identifier> { "," <identifier } ":" [ in | out | in out ] 
+  <identifier> [ := <expression> ]
+
+procedure_parameter_declaration ::= 
+  proc_parameter { ";" proc_parameter }
+
+expr_element ::=
+  <simple_expression> [ [ "=" | "/=" | "<" | "<=" | ">" | ">=" ] 
+  <simple_expression> ] [ [ and | or | xor ] <simple_expression> ]
+
+primary ::=
+  "(" <expression> ")" | 
+  <identifier> [ "(" <expression> { "," <expression> } ")" ]
+  
+simple_expression_support ::= 
+  <primary> [ "**" <primary> ] [ "*" | mod | "/" ] [ "+" | "-" ]
+
+simple_expression ::=
+  [ "+" | "-" | "not" ] <simple_expression_support>
+  { <simple_expression_support> }
+
+expression ::=
+  <expr_element> { <expr_element> }
+  
+statements ::=
+  null ";" | return <expression> ";" | <for_loop_declaration> ";" | 
+  <identifier> ":=" <expression> ";" | <declare_block_declaration>
+   ";" | <identifier> "(" <expression> { "," <expression> ")" ";"
+
+for_loop_declaration ::=
+  for <identifier> <numeric> ".." <numeric> loop <statements> 
+  end loop ";"
+
+decl_item ::=
+  <numeric> "=>" <numeric>
+  
+decl_element ::=
+  <numeric> | <identifier> | "(" ( others "=>" ( <numeric> | 
+  <identifier> )) | <decl_item> { "," <decl_item> } ")" 
+
+variables_declaration ::=
+  <identifier> { "," <identifier> } ":" [ constant ] <identifier>
+  [ ":=" <decl_element> ] ";"
+
+declare_block_declaration ::=
+  declare <variables_declaration> begin <statements> end ";" 
+
+function_declaration ::=
+  function <identifier> is | function <identifier> 
+  "(" <function_parameter_declaration> ")"
+  return <identifier>  is begin <statements> end [ <identifier> ]";"
+
+func_parameter ::=
+  <identifier> { "," <identifier } ":" [ in ] <identifier>
+  [ := <expression> ]
+
+function_parameter_declaration ::= 
+  <func_parameter> { ";" <func_parameter> }
+
+var_item ::=
+  <numeric> "=>" <numeric>
+
+var_element ::=
+  <numeric> | <identifier> | "(" ( others "=>" ( <numeric> | 
+  <identifier> )) | <var_item> { "," <var_item> } ")" 
+
+variables_declaration ::=
+  <identifier> { "," <identifier> } ":" [ constant ] <identifier> 
+  [ ":=" <var_element> ] ";"
+
+begin_declaration ::=
+  begin ( <configuration_declaration>, { test_vector_declaration } )
+  end [ <identifier> ] ";"
+
+configuration_declaration ::= 
+  [ <identifier> "." ] <identifier> := "(" 
+  [ DXPL_ALGORITHM => ] <identifier> "." <identifier> "," 
+  [ DXPL_ROUNDS    => ] { <numeric> } ")" ","
+  [ DXPL_TERMINATION => ] { <numeric> } ")" ";"
+
+test_vector_declaration ::=
+  [ <identifier> "." ] <identifier> := "("
+  [ DXPL_Message =>  ] <array_declaration> ","
+  [ [ DXPL_Key   =>  ] <array_declaration> "," ]
+  [ DXPL_DIGEST  =>  ] <array_declaration> ")" ";"
+
+array_element ::=
+  [ <numeric>  => ] <numeric>
+
+array_declaration ::= 
+  "(" array_element { "," array_element } ")"
+\end{lstlisting}
+
+\end{document}
+
+

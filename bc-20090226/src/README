@@ -1,0 +1,26 @@
+This is the Download directory of the Ada 95 Booch Components.
+
+The Components are available in three forms:
+
+bc-{date}.tgz, normally for UNIX systems
+
+  tar zxvf bc-{date}.tgz
+  zcat bc-{date}.tgz | tar xvf -
+  gunzip < bc-19980924.tgz | tar xvf -
+
+bc-{date}.zip,    normally for Windows 95 (long file names)
+
+  use WinZip or equivalent (has CR/LF line terminations)
+
+bc-{date}.src,    uncompressed concatenated source, for DOS/Windows 3
+
+  use the GNAT utility gnatchop to extract the sources and crunch
+  the file names to 8.3 form.
+
+The HTML documentation is available as bc-html-{date}.zip.
+
+GNAT can be obtained from ftp://cs.nyu.edu/pub/gnat and mirrors.
+
+Simon Wright <simon@pushface.org>
+
+

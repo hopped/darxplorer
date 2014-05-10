@@ -1,0 +1,53 @@
+	type    Word_Array    is array (Integer range <>) of Word;
+	subtype Word_Array_80 is Word_Array (0 .. 79);
+	subtype Word_Array_64 is Word_Array (0 .. 63);
+	subtype Word_Array_32 is Word_Array (0 .. 31);
+	subtype Word_Array_16 is Word_Array (0 .. 15);
+	subtype Word_Array_8  is Word_Array (0 ..  7);
+	subtype Word_Array_4  is Word_Array (0 ..  3);
+	subtype Word_Array_2  is Word_Array (0 ..  2);
+
+	Rounds : Positive;
+	--  While compiling, a concrete subtype named 'Round'
+	--  will be created. Rounds'Last allows access to the
+	--  maximal round number.
+
+	-----------------------------------------------
+	-- Currently, offer dummy functions to allow --
+	-- low primitive operations                  --
+	-----------------------------------------------
+
+	function Rotate_Left  (Value : in Word; Amount : in Natural) return Word renames Interfaces.Rotate_Left;
+
+	function Rotate_Right (Value : in Word; Amount : in Natural) return Word renames Interfaces.Rotate_Left;
+
+	function Shift_Left  (Value : in Word; Amount : in Natural) return Word renames Interfaces.Rotate_Left;
+
+	function Shift_Right (Value : in Word; Amount : in Natural) return Word renames Interfaces.Rotate_Left;
+
+	function "+"   (Left, Right : in Word) return Word renames Interfaces."+";
+
+	function "-"   (Left, Right : in Word) return Word renames Interfaces."-";
+
+	function "*"   (Left, Right : in Word) return Word renames Interfaces."*";
+
+	function "xor" (Left, Right : in Word) return Word renames Interfaces."xor";
+
+	function "and" (Left, Right : in Word) return Word renames Interfaces."and";
+
+        function "or"  (Left, Right : in Word) return Word renames Interfaces."or";
+
+        function "not" (Left : in Word) return Word renames Interfaces."not";
+
+	-----------
+	-- SETUP --
+	-----------
+
+	type Hamming_Weight is (HW_1, HW_2, HW_3, HW_4);
+	type Technique      is (Trusty_Trudy, Lazy_Laura, Greedy_Grete, Pedantic_Petra, Fuzzy_Fiona);
+
+	procedure Configuration (DXPL_ALGORITHM : String; DXPL_ROUNDS : Positive; DXPL_TERMINATION : Positive) is null;
+	
+	procedure Test_Vector (DXPL_MESSAGE, DXPL_KEY, DXPL_DIGEST : Word_Array) is null;
+
+	procedure Test_Vector (DXPL_MESSAGE, DXPL_DIGEST : Word_Array) is null;

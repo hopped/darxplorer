@@ -1,0 +1,564 @@
+----------------------------------------------------------------------------
+--  @filename  booch_95.gpr
+--  @brief     Root Package for WikiBook Ada Programming
+--  @author    Martin Krischik
+--  @date      $Date: 2009-01-13 21:10:15 +0000 (Tue, 13 Jan 2009) $
+--  @version   1.0
+--  @revision  $Revision: 1394 $
+--  @copyright &copy;, 2005, Martin Krischik
+--  @licence   GNU Library General Public License
+----------------------------------------------------------------------------
+--  Copyright (C) 2005 Martin Krischik
+--
+--  This library is free software; you can redistribute it and/or
+--  modify it under the terms of the GNU Library General Public
+--  License as published by the Free Software Foundation; either
+--  version 2 of the License, or (at your option) any later version.
+--
+--  This library is distributed in the hope that it will be useful,
+--  but WITHOUT ANY WARRANTY; without even the implied warranty of
+--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+--  Library General Public License for more details.
+--
+--  You should have received a copy of the GNU Library General Public
+--  License along with this library; if not, write to the Free
+--  Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+----------------------------------------------------------------------------
+--
+--  Subversion Data
+--
+--    $Author: simonjwright $
+--
+--    $Revision: 1394 $
+--    $Date: 2009-01-13 21:10:15 +0000 (Tue, 13 Jan 2009) $
+--
+--    $Id: booch_95.gpr 1394 2009-01-13 21:10:15Z simonjwright $
+--    $HeadURL$
+--
+----------------------------------------------------------------------------
+--
+-- This file is not to be edited through the project properties in GPS.
+--
+
+project Booch_95 is
+
+   type Style_Type  is ("Debug", "Release");
+   type OS_Type     is ("Linux", "OS2", "Windows_NT", "VMS", "Darwin", "SunOS");
+   type CPU_Type    is ("i586", "i686", "x86_64", "AXP", "ppc32", "sparc");
+   type Target_Type is ("native", "mingw32");
+
+   Style  : Style_Type  := external ("style"      , "Release");
+   OS     : OS_Type     := external ("GPR_OS"     , "Linux");
+   CPU    : CPU_Type    := external ("GPR_CPU"    , "i686");
+   Target : Target_Type := external ("GPR_Target" , "native");
+
+   Base    := ".";
+   Version := "1.1.0";
+
+   case Target is
+      when "native" =>
+         for Exec_Dir     use  Base & "/" & OS & "-" & CPU & "-" & Style;
+         for Object_Dir   use  Base & "/" & OS & "-" & CPU & "-" & Style & "/obj";
+         for Library_Dir  use  Base & "/" & OS & "-" & CPU & "-" & Style & "/lib";
+      when others =>
+         for Exec_Dir     use  Base & "/" & Target & "-" & CPU & "-" & Style;
+         for Object_Dir   use  Base & "/" & Target & "-" & CPU & "-" & Style & "/obj";
+         for Library_Dir  use  Base & "/" & Target & "-" & CPU & "-" & Style & "/lib";
+   end case;
+
+   for Source_Dirs  use ("../src");
+   for Languages    use ("ada");
+   for Library_Name use "booch95";
+
+   case Style is
+      when "Release" =>
+         for Library_Kind        use "dynamic";
+         for Library_Version     use "libbooch95.so." & Version;
+      when "Debug" =>
+         for Library_Kind        use "static";
+         for Library_Version     use "libbooch95.a." & Version;
+   end case;
+
+   --------------------------------------------------------------------------
+   --
+   package Naming is
+      for Casing use "lowercase";
+      for Dot_Replacement use "-";
+
+      for Specification_Suffix ("ada") use ".ads";
+      for Implementation_Suffix ("ada") use ".adb";
+      case CPU is
+         when "i586" | "i686" | "x86_64" =>
+            for Separate_Suffix use ".adb-pentium";
+         when "ppc32" =>
+            for Separate_Suffix use ".adb-ppc32";
+         when "AXP" | "sparc" =>
+            for Separate_Suffix use ".adb";
+      end case;
+      for Specification_Suffix ("c") use ".c";
+      for Implementation_Suffix ("c") use ".h";
+   end Naming;
+
+   --------------------------------------------------------------------------
+   --
+   package Compiler is
+      for Default_Switches ("ada") use (
+         "-gnatiw",                          -- Wide-character codes allowed in identifiers
+         -- "-gnatW8",                          -- UTF-8 encoding (the only one where ASIS works correct)
+         "-gnatef",                          -- Full source path in brief error messages
+         "-gnatf",                           -- Full errors. Verbose details, all undefined references
+         "-gnatU",                           -- Enable unique tag for error messages
+         "-gnatwcdfijklmopruvz",             -- All warings enabled
+         "-gnatq",                           -- Don't quit, try semantics, even if parse errors
+         "-gnatQ",                           -- Don't quit, write ali/tree file even if compile errors
+         "-gnatT4");                         -- Compiler tables sizes 4* default
+
+      for Default_Switches ("c") use (
+         "-Wall");                           -- all warnings
+
+      case OS is
+         when "Windows_NT" =>
+         when others =>
+            for Default_Switches ("ada") use
+            Compiler'Default_Switches ("ada") & (
+               "-fPIC");                     -- Position Independend Code
+      end case;
+
+      case Style is
+         when "Debug" =>
+            for Default_Switches ("ada") use
+            Compiler'Default_Switches ("ada") & (
+               "-gnata",                     -- Enable Assersions.
+               "-gnato",                     -- Enable overflow checking
+               "-fstack-check",              -- Generate stack checking code
+               "-gnatVa",                    -- Enable selected validity checking mode
+               "-g");                        -- Debug info in binary.
+
+         when "Release" =>
+           for Default_Switches ("ada") use
+           Compiler'Default_Switches ("ada") & (
+               "-O3",                        -- Optimisation "3"
+               "-gnatn",                     -- Inline Functions
+--             "-gnatN",                     -- Full (frontend) inlining of subprograms
+               "-funroll-loops",             -- Unroll Loops
+               "-Wuninitialized",            -- Warn for uninitialized variables
+               "-gnaty3abcefhiklmnoprstM79", -- Layout checks
+               "-fomit-frame-pointer");      --
+
+           for Default_Switches ("c") use
+           Compiler'Default_Switches ("c") & (
+               "-O3",                         -- Optimisation "3"
+               "-static",                     --
+               "-funroll-loops",              -- Unroll Loops
+               "-fomit-frame-pointer");       --
+      end case;
+
+      case CPU is
+         when "x86_64" =>
+            for Default_Switches ("ada") use
+               Compiler'Default_Switches ("ada") & (
+                  "-fPIC");                  -- Position Independend Code
+         when others =>
+      end case;
+   end Compiler;
+
+   --------------------------------------------------------------------------
+   --
+   package Finder is
+      for Switches ("ada") use ("-a");
+   end Finder;
+
+   --------------------------------------------------------------------------
+   --
+   package Cross_Reference is
+      for Default_Switches ("ada") use (
+      "-f",       -- Output full path name
+      "-v");      -- Print a 'tags' file for vi
+   end Cross_Reference;
+
+   --------------------------------------------------------------------------
+   --
+   package Builder is
+      for Default_Switches ("ada") use (
+         "-F",             --  Full project path name in brief error messages
+         "-m",             --  Minimal recompilation
+         "-j4",            --  Use nnn processes to compile
+         "-C",             --  Cache source mappings: invoke compiler with temp mapping file
+         "-gnatQ",         --  Don't quit, write ali/tree file even if compile errors
+         "-k",             --  Keep going after compilation errors
+         "-shared",
+         "-E");
+      for Default_Switches ("c") use (
+         "-F",             --  Full project path name in brief error messages
+         "-m",             --  Minimal recompilation
+         "-j4",            --  Use nnn processes to compile
+         "-k",             --  Keep going after compilation errors
+         "-C",             --  Cache source mappings: invoke compiler with temp mapping file
+         "-gnatQ",         --  Don't quit, write ali/tree file even if compile errors
+         "-shared",
+         "-E");
+
+      case Style is
+         when "Release" =>
+         when "Debug" =>
+            for Default_Switches ("ada") use
+               Builder'Default_Switches ("ada") & (
+                  "-g");                     --  Generate debugging information
+            for Default_Switches ("c") use
+               Builder'Default_Switches ("c") & (
+                  "-g");                     --  Generate debugging information
+      end case;
+   end Builder;
+
+   --------------------------------------------------------------------------
+   --
+   package Binder is
+      for Default_Switches ("ada") use ("-shared");
+
+      case Style is
+         when "Release" =>
+         when "Debug" =>
+            for Default_Switches ("ada") use
+            Binder'Default_Switches ("ada") & (
+               "-E");                        -- Tracebacks From Exception Occurrences
+      end case;
+   end Binder;
+
+   --------------------------------------------------------------------------
+   --
+   package Linker is
+      case Style is
+         when "Debug" =>
+            for Default_Switches ("ada") use (
+               "-g");                        -- Debug info in binary.
+            for Default_Switches ("c") use (
+               "-g");                        -- Debug info in binary.
+         when "Release" =>
+            case OS is
+               when "VMS" =>
+               when others =>
+                  for Default_Switches ("ada") use ("-s");
+            end case;
+      end case;
+   end Linker;
+
+   --------------------------------------------------------------------------
+   --
+   package Ide is
+      for Vcs_Kind use "CVS";
+
+      case Target is
+         when "native" =>
+            for Compiler_Command ("c")    use "gcc";
+            for Compiler_Command ("ada")  use "gnatmake";
+            for Gnatlist                  use "gnatls";
+            --for Gnat                      use "gnat";
+         when others =>
+            for Compiler_Command ("c")    use Target & "-gcc";
+            for Compiler_Command ("ada")  use Target & "-gnatmake";
+            for Gnatlist                  use Target & "-gnatls";
+            --for Gnat                      use Target & "-gnat";
+      end case;
+   end Ide;
+
+   --------------------------------------------------------------------------
+   --
+   package Pretty_Printer is
+      for Default_Switches ("ada") use (
+        "-cl3",                              --  Generate stack checking code
+        "-M79",                              --  set maximum line length, nnn from 32 .. 256, the default value is 79
+        "-rf",                               --  replace the argument source with the pretty-printed source and copy the
+                                             --  argument source into filename.npp , overriding the existing file
+        "-c3",                               --  GNAT style comment beginning
+        "-c4",                               --  reformat comment blocks
+        "-A1",                               --  align colons in declarations
+        "-A2",                               --  align assignments in declarations
+        "-A3",                               --  align assignments in assignment statements
+        "-A4",                               --  align arrow delimiters in associations
+        "-A5");                              --  align 'AT' keywords in component clauses
+   end Pretty_Printer;
+
+   Source_Files := (
+      "bc-containers-bags-bounded.adb",
+      "bc-containers-bags-bounded.ads",
+      "bc-containers-bags-dynamic.adb",
+      "bc-containers-bags-dynamic.ads",
+      "bc-containers-bags-unbounded.adb",
+      "bc-containers-bags-unbounded.ads",
+      "bc-containers-bags-unmanaged.adb",
+      "bc-containers-bags-unmanaged.ads",
+      "bc-containers-bags.adb",
+      "bc-containers-bags.ads",
+      "bc-containers-collections-bounded.adb",
+      "bc-containers-collections-bounded.ads",
+      "bc-containers-collections-dynamic.adb",
+      "bc-containers-collections-dynamic.ads",
+      "bc-containers-collections-ordered-bounded.adb",
+      "bc-containers-collections-ordered-bounded.ads",
+      "bc-containers-collections-ordered-dynamic.adb",
+      "bc-containers-collections-ordered-dynamic.ads",
+      "bc-containers-collections-ordered-unbounded.adb",
+      "bc-containers-collections-ordered-unbounded.ads",
+      "bc-containers-collections-ordered-unmanaged.adb",
+      "bc-containers-collections-ordered-unmanaged.ads",
+      "bc-containers-collections-ordered.ads",
+      "bc-containers-collections-unbounded.adb",
+      "bc-containers-collections-unbounded.ads",
+      "bc-containers-collections-unmanaged.adb",
+      "bc-containers-collections-unmanaged.ads",
+      "bc-containers-collections.adb",
+      "bc-containers-collections.ads",
+      "bc-containers-deques-bounded.adb",
+      "bc-containers-deques-bounded.ads",
+      "bc-containers-deques-dynamic.adb",
+      "bc-containers-deques-dynamic.ads",
+      "bc-containers-deques-unbounded.adb",
+      "bc-containers-deques-unbounded.ads",
+      "bc-containers-deques-unmanaged.adb",
+      "bc-containers-deques-unmanaged.ads",
+      "bc-containers-deques.adb",
+      "bc-containers-deques.ads",
+      "bc-containers-lists-double.adb",
+      "bc-containers-lists-double.ads",
+      "bc-containers-lists-single.adb",
+      "bc-containers-lists-single.ads",
+      "bc-containers-lists.ads",
+      "bc-containers-maps-bounded.adb",
+      "bc-containers-maps-bounded.ads",
+      "bc-containers-maps-dynamic.adb",
+      "bc-containers-maps-dynamic.ads",
+      "bc-containers-maps-unbounded.adb",
+      "bc-containers-maps-unbounded.ads",
+      "bc-containers-maps-unmanaged.adb",
+      "bc-containers-maps-unmanaged.ads",
+      "bc-containers-maps.adb",
+      "bc-containers-maps.ads",
+      "bc-containers-queues-bounded.adb",
+      "bc-containers-queues-bounded.ads",
+      "bc-containers-queues-dynamic.adb",
+      "bc-containers-queues-dynamic.ads",
+      "bc-containers-queues-ordered-bounded.adb",
+      "bc-containers-queues-ordered-bounded.ads",
+      "bc-containers-queues-ordered-dynamic.adb",
+      "bc-containers-queues-ordered-dynamic.ads",
+      "bc-containers-queues-ordered-unbounded.adb",
+      "bc-containers-queues-ordered-unbounded.ads",
+      "bc-containers-queues-ordered-unmanaged.adb",
+      "bc-containers-queues-ordered-unmanaged.ads",
+      "bc-containers-queues-ordered.ads",
+      "bc-containers-queues-unbounded.adb",
+      "bc-containers-queues-unbounded.ads",
+      "bc-containers-queues-unmanaged.adb",
+      "bc-containers-queues-unmanaged.ads",
+      "bc-containers-queues.adb",
+      "bc-containers-queues.ads",
+      "bc-containers-quicksort.adb",
+      "bc-containers-quicksort.ads",
+      "bc-containers-rings-bounded.adb",
+      "bc-containers-rings-bounded.ads",
+      "bc-containers-rings-dynamic.adb",
+      "bc-containers-rings-dynamic.ads",
+      "bc-containers-rings-unbounded.adb",
+      "bc-containers-rings-unbounded.ads",
+      "bc-containers-rings-unmanaged.adb",
+      "bc-containers-rings-unmanaged.ads",
+      "bc-containers-rings.adb",
+      "bc-containers-rings.ads",
+      "bc-containers-sets-bounded.adb",
+      "bc-containers-sets-bounded.ads",
+      "bc-containers-sets-dynamic.adb",
+      "bc-containers-sets-dynamic.ads",
+      "bc-containers-sets-unbounded.adb",
+      "bc-containers-sets-unbounded.ads",
+      "bc-containers-sets-unmanaged.adb",
+      "bc-containers-sets-unmanaged.ads",
+      "bc-containers-sets.adb",
+      "bc-containers-sets.ads",
+      "bc-containers-shellsort.adb",
+      "bc-containers-shellsort.ads",
+      "bc-containers-stacks-bounded.adb",
+      "bc-containers-stacks-bounded.ads",
+      "bc-containers-stacks-dynamic.adb",
+      "bc-containers-stacks-dynamic.ads",
+      "bc-containers-stacks-unbounded.adb",
+      "bc-containers-stacks-unbounded.ads",
+      "bc-containers-stacks-unmanaged.adb",
+      "bc-containers-stacks-unmanaged.ads",
+      "bc-containers-stacks.adb",
+      "bc-containers-stacks.ads",
+      "bc-containers-trees-avl-print.adb",
+      "bc-containers-trees-avl-print.ads",
+      "bc-containers-trees-avl-validate.adb",
+      "bc-containers-trees-avl-validate.ads",
+      "bc-containers-trees-avl.adb",
+      "bc-containers-trees-avl.ads",
+      "bc-containers-trees-binary-in_order.adb",
+      "bc-containers-trees-binary-in_order.ads",
+      "bc-containers-trees-binary-post_order.adb",
+      "bc-containers-trees-binary-post_order.ads",
+      "bc-containers-trees-binary-pre_order.adb",
+      "bc-containers-trees-binary-pre_order.ads",
+      "bc-containers-trees-binary.adb",
+      "bc-containers-trees-binary.ads",
+      "bc-containers-trees-multiway-post_order.adb",
+      "bc-containers-trees-multiway-post_order.ads",
+      "bc-containers-trees-multiway-pre_order.adb",
+      "bc-containers-trees-multiway-pre_order.ads",
+      "bc-containers-trees-multiway.adb",
+      "bc-containers-trees-multiway.ads",
+      "bc-containers-trees.ads",
+      "bc-containers.adb",
+      "bc-containers.ads",
+      "bc-copy.adb",
+      "bc-copy.ads",
+      "bc-filter.adb",
+      "bc-filter.ads",
+      "bc-graphs-directed.adb",
+      "bc-graphs-directed.ads",
+      "bc-graphs-undirected.adb",
+      "bc-graphs-undirected.ads",
+      "bc-graphs.adb",
+      "bc-graphs.ads",
+      "bc-indefinite_containers-collections-bounded.adb",
+      "bc-indefinite_containers-collections-bounded.ads",
+      "bc-indefinite_containers-collections-dynamic.adb",
+      "bc-indefinite_containers-collections-dynamic.ads",
+      "bc-indefinite_containers-collections-ordered-bounded.adb",
+      "bc-indefinite_containers-collections-ordered-bounded.ads",
+      "bc-indefinite_containers-collections-ordered-dynamic.adb",
+      "bc-indefinite_containers-collections-ordered-dynamic.ads",
+      "bc-indefinite_containers-collections-ordered-unbounded.adb",
+      "bc-indefinite_containers-collections-ordered-unbounded.ads",
+      "bc-indefinite_containers-collections-ordered-unmanaged.adb",
+      "bc-indefinite_containers-collections-ordered-unmanaged.ads",
+      "bc-indefinite_containers-collections-ordered.ads",
+      "bc-indefinite_containers-collections-unbounded.adb",
+      "bc-indefinite_containers-collections-unbounded.ads",
+      "bc-indefinite_containers-collections-unmanaged.adb",
+      "bc-indefinite_containers-collections-unmanaged.ads",
+      "bc-indefinite_containers-collections.adb",
+      "bc-indefinite_containers-collections.ads",
+      "bc-indefinite_containers-indefinite_iterators.adb",
+      "bc-indefinite_containers-indefinite_iterators.ads",
+      "bc-indefinite_containers-queues-bounded.adb",
+      "bc-indefinite_containers-queues-bounded.ads",
+      "bc-indefinite_containers-queues-dynamic.adb",
+      "bc-indefinite_containers-queues-dynamic.ads",
+      "bc-indefinite_containers-queues-ordered-bounded.adb",
+      "bc-indefinite_containers-queues-ordered-bounded.ads",
+      "bc-indefinite_containers-queues-ordered-dynamic.adb",
+      "bc-indefinite_containers-queues-ordered-dynamic.ads",
+      "bc-indefinite_containers-queues-ordered-unbounded.adb",
+      "bc-indefinite_containers-queues-ordered-unbounded.ads",
+      "bc-indefinite_containers-queues-ordered-unmanaged.adb",
+      "bc-indefinite_containers-queues-ordered-unmanaged.ads",
+      "bc-indefinite_containers-queues-ordered.ads",
+      "bc-indefinite_containers-queues-unbounded.adb",
+      "bc-indefinite_containers-queues-unbounded.ads",
+      "bc-indefinite_containers-queues-unmanaged.adb",
+      "bc-indefinite_containers-queues-unmanaged.ads",
+      "bc-indefinite_containers-queues.adb",
+      "bc-indefinite_containers-queues.ads",
+      "bc-indefinite_containers.adb",
+      "bc-indefinite_containers.ads",
+      "bc-support-indefinite_bounded.adb",
+      "bc-support-indefinite_bounded.ads",
+      "bc-support-indefinite_dynamic.adb",
+      "bc-support-indefinite_dynamic.ads",
+      "bc-support-indefinite_reference.adb",
+      "bc-support-indefinite_reference.ads",
+      "bc-support-indefinite_unbounded.adb",
+      "bc-support-indefinite_unbounded.ads",
+      "bc-support-indefinite_unmanaged.adb",
+      "bc-support-indefinite_unmanaged.ads",
+      "bc-lists-double.adb",
+      "bc-lists-double.ads",
+      "bc-lists-single.adb",
+      "bc-lists-single.ads",
+      "bc-lists.adb",
+      "bc-lists.ads",
+      "bc-simple_collections.adb",
+      "bc-simple_collections.ads",
+      "bc-support-array_streams.adb",
+      "bc-support-array_streams.ads",
+      "bc-support-avl_trees.adb",
+      "bc-support-avl_trees.ads",
+      "bc-support-bounded.adb",
+      "bc-support-bounded.ads",
+      "bc-support-bounded_hash_tables.adb",
+      "bc-support-bounded_hash_tables.ads",
+      "bc-support-dynamic.adb",
+      "bc-support-dynamic.ads",
+      "bc-support-exceptions.adb",
+      "bc-support-exceptions.ads",
+      "bc-support-hash_tables.adb",
+      "bc-support-hash_tables.ads",
+      "bc-support-managed_storage.adb",
+      "bc-support-managed_storage.ads",
+      "bc-support-memory_streams.adb",
+      "bc-support-memory_streams.ads",
+      "bc-support-smart_pointers.adb",
+      "bc-support-smart_pointers.ads",
+      "bc-support-standard_deviations.adb",
+      "bc-support-standard_deviations.ads",
+      "bc-support-standard_storage.ads",
+      "bc-support-statistics.adb",
+      "bc-support-statistics.ads",
+      "bc-support-synchronization-debug.adb",
+      "bc-support-synchronization-debug.ads",
+      "bc-support-synchronization.adb",
+      "bc-support-synchronization.ads",
+      "bc-support-unbounded.adb",
+      "bc-support-unbounded.ads",
+      "bc-support-unmanaged.adb",
+      "bc-support-unmanaged.ads",
+      "bc-support-unmanaged_storage.adb",
+      "bc-support-unmanaged_storage.ads",
+      "bc-support.ads",
+      "bc-trees-avl_trees-iterators.adb",
+      "bc-trees-avl_trees-iterators.ads",
+      "bc-trees-avl_trees-print.adb",
+      "bc-trees-avl_trees-print.ads",
+      "bc-trees-avl_trees-validate.adb",
+      "bc-trees-avl_trees-validate.ads",
+      "bc-trees-avl_trees.adb",
+      "bc-trees-avl_trees.ads",
+      "bc-trees-binary_trees-in_order.adb",
+      "bc-trees-binary_trees-in_order.ads",
+      "bc-trees-binary_trees-post_order.adb",
+      "bc-trees-binary_trees-post_order.ads",
+      "bc-trees-binary_trees-pre_order.adb",
+      "bc-trees-binary_trees-pre_order.ads",
+      "bc-trees-binary_trees.adb",
+      "bc-trees-binary_trees.ads",
+      "bc-trees-multiway_trees-post_order.adb",
+      "bc-trees-multiway_trees-post_order.ads",
+      "bc-trees-multiway_trees-pre_order.adb",
+      "bc-trees-multiway_trees-pre_order.ads",
+      "bc-trees-multiway_trees.adb",
+      "bc-trees-multiway_trees.ads",
+      "bc-trees.ads",
+      "bc.ads");
+
+   case CPU is
+      when "i586" | "i686" | "x86_64" =>
+         for Source_Files use
+            Source_Files & (
+               "bc-support-high_resolution_time.adb",
+               "bc-support-high_resolution_time.ads",
+               "bc-support-high_resolution_time-clock.adb-pentium");
+      when "ppc32" =>
+         for Source_Files use
+            Source_Files & (
+               "bc-support-high_resolution_time.adb",
+               "bc-support-high_resolution_time.ads",
+               "bc-support-high_resolution_time-clock.adb-ppc32");
+      when "AXP" | "sparc" =>
+         for Source_Files use Source_Files;
+   end case;
+
+end Booch_95;
+
+----------------------------------------------------------------------------
+--  vim: textwidth=0 nowrap tabstop=8 shiftwidth=3 softtabstop=3 expandtab
+--  vim: filetype=ada encoding=latin1 fileformat=unix

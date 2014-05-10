@@ -1,0 +1,751 @@
+\documentclass{acmtrans2m}
+
+\usepackage[utf8x]{inputenc}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc} 
+\usepackage{amsmath}
+\usepackage{algorithm2e}
+\usepackage{color}
+\usepackage{listings} 
+\newcommand{\hervorheben}{\color{red}}%
+\newenvironment{algorithmic}{%
+\renewenvironment{algocf}[1][h]{}{}% pass over the floating stuff
+\algorithm
+}{%
+\endalgorithm
+}
+\usepackage[pdftex]{graphicx}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newdef{definition}[theorem]{Definition}
+\newdef{remark}[theorem]{Remark}
+           
+\markboth{Dennis Hoppe}{DARXplorer 2.0 -- Developer Documentation}
+
+\title{DARXplorer 2.0 -- Developer Documentation}
+            
+\author{DENNIS HOPPE\\
+      Bauhaus-University Weimar 
+}
+
+\lstset{language=Ada,numbers=none,frame=none,basicstyle=\footnotesize,breaklines,tabsize=2,captionpos=b,prebreak={\hbox{ $\rightarrow$}},postbreak={\hbox{$\hookrightarrow$ }},showstringspaces=false}
+            
+\begin{abstract}
+DARXplorer is a toolbox for cryptanalysts and cipher designers. It
+supports the differential cryptanalysis of primitives which use a mixture of addition, 
+rotation and xor. DARXplorer attempts to find good xor differences. The two main 
+use cases for DARXplorer are (1) aiding the designers of new primitives to defend 
+against attacks and (2) analyzing existing primitives to find attacks.
+\end{abstract}
+
+\category{...}{...}{...}
+%\terms{...}             
+%\keywords{...}
+      
+\begin{document}
+    
+\maketitle
+
+%
+% EINLEITUNG
+%
+\section{Introduction}
+\label{section:einleitung}
+
+\textit{DARXplorer} was one of the MSL laboratory projects in the summer term 2008.
+Goal of the project was to create a framework supporting the development of the block 
+cipher \textit{Threefish} \cite{Anonymous:2008p2963} used in the hash function \textit{Skein} \cite{Whiting:2009p11767}. Threefish based on a
+mixture of addition modulo $2^{64}$, rotation and xor. DARXplorer attempts to find good xor differences.
+
+Besides supporting the development of new primitives, DARXplorer's second goal is to find attacks against existing primitives like \textit{SHA-256}. For that reason, DARXplorer
+was enhanced in a consecutive research project in the summer term 2009 to allow the analyzation of arbitrary primitives so long as they use a mixture of the previous stated mixture of operations. Due to the fact, that the framework was completely rewritten, this 
+developer documentation will give you detailed information about the 
+implementation for further development.
+
+For more information regarding DARXplorer in general, see \citeN{Lucks:2008p2672}.
+
+\bigbreak
+
+This developer documentation is about installation and usage of DARXplorer in chapters \ref{chapter:pre} and \ref{chapter:installation}. Chapter \ref{chapter:project} presents the object
+structure in detail. It is shown, which steps are needed to integrate an input source file into
+DARXplorer. Chapter \ref{chapter:syntax} attends the supported syntax for writing
+declarations of cryptographic primitives. Subsequent to this chapter discusses chapter
+\ref{chapter:techniques} all implemented techniques in detail and shows how to
+add new techniques. Chapter \ref{chapter:log} deals with user-defined formatting
+of log files, before in chapter \ref{chapter:future} challenges and future work are discussed.
+
+\section{Prerequisites}\label{chapter:pre}
+All you need is \textit{GNAT}, the free-software compiler for Ada in version 4.3 
+or higher. If you are running an UNIX based operating system like Ubuntu, you can
+get the current GNAT compiler simply by typing in your preferred terminal:\\ \\
+\noindent\hspace*{12mm}%
+\texttt{\$ sudo apt-get install gnats}\\
+\noindent\hspace*{12mm}%
+\texttt{\$ gnatmake --version}\\ \\
+You should see the following output:\\ \\
+\noindent\hspace*{12mm}%
+\texttt{GNATMAKE 4.3.4}\\
+\noindent\hspace*{12mm}%
+\texttt{Copyright (C) 1995-2007, Free Software Foundation, Inc.}\\
+\noindent\hspace*{12mm}%
+\texttt{This is free software; see the source for copying conditions.}\\
+\noindent\hspace*{12mm}%
+\texttt{There is NO warranty; not even for MERCHANTABILITY or}\\ 
+\noindent\hspace*{12mm}%
+\texttt{FITNESS FOR A PARTICULAR PURPOSE.}\\
+
+DARXplorer does not use any GNAT-specific features. It is likely, that
+DARXplorer will compile with GNAT versions prior to 4.3. We have tested
+the current distribution successfully under \textit{Ubuntu} 9.04 with GNAT 4.3 installed.
+Further on, DARXplorer is running under \textit{MAC OS X} (Version 10.5.x)
+with GNAT GPL 2009 installed. If you use MAC OS X 10.6 (Snow Leopard),
+you have to upgrade to an experimental branch of GNAT 4.4, because GNAT GPL 2009
+is currently not running on Snow Leopard.
+
+For the development of DARXplorer are no special tools required.
+
+\section{Installation}\label{chapter:installation}
+
+After the successful installation of GNAT you are ready to download DARXplorer.
+Checkout the sources from the repository to your local folder by typing\\ \\
+\noindent\hspace*{12mm}%
+\texttt{\$ svn co svn://medsec.medien.uni-weimar.de/darx}\\ \\
+Please have your username and password on tap.
+
+In the checkout directory, you will find a \texttt{Makefile} and a shell script named \texttt{build.sh}. For development purposes, the Makefile is sufficient. The shell script offers a convenient way for end users to use DARXplorer.
+
+\subsection{Makefile}
+The \texttt{Makefile} offers you the following targets:
+\begin{enumerate}
+	\item \texttt{compiler} Compiles the DARXplorer framework and creates the executable \texttt{dxpl-compiler-cli}, that can be used to convert primitive declarations in Ada. While transforming the description, several files will be added to the framework.
+	\item \texttt{run-compiler} Usually, if you went through step (1), you have to call the executable with your desired source file. The target \texttt{run-compiler} incorporates both steps by taking the script as an argument, e.g. : \texttt{make run-compiler ARG=examples/threefish256.adb}. This target returns \texttt{TRUE}, if no errors occurred.
+	\item \texttt{function} Additional files created in step (1) or (2) have to be compiled a second time. This target generates the \texttt{darxplorer} executable, finally.
+	\item \texttt{clean} Cleans up the object directory.
+\end{enumerate}
+
+All in all, if you want to create a DARXplorer instance incorporating Threefish 256, you have to execute the following commands in the root of the distribution:\\ \\
+\noindent\hspace*{12mm}%
+\texttt{\$ make run-compiler ARG=examples/Threefish256.adb}\\
+\noindent\hspace*{12mm}%
+\texttt{\$ make function}\\
+
+\subsection{Shell script}
+The shell script applies the same tasks as the \texttt{Makefile}, but provides a simplified interface to allow end users to use DARXplorer in a more convenient way. Only one call to \texttt{build.sh} is sufficient to build the final executable:\\ \\ 
+\noindent\hspace*{12mm}%
+\texttt{\$ ./build.sh examples/Threefish256.adb}\\ \\
+By calling the shell script without arguments or by means of \texttt{-\,-usage} as a parameter, it will display some useful help on the command line.
+
+\section{Project Structure}\label{chapter:project}
+DARXplorer currently shows the following project structure, if directly checked out from the repository:\\ \\
+\noindent\hspace*{12mm}%
+\texttt{\ \ \ \ {\bf trunk}\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ..{\bf bc-20090226}\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ..build.sh\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ..Makefile\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ..{\bf examples}\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ..{\bf src}\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ....{\bf compiler}\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ......{\bf lexer}\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ......{\bf parser}\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ........{\bf support}\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ....{\bf function}\\
+\noindent\hspace*{12mm}%
+\ \ \ \ ..{\bf tests}\\
+}
+
+Consequent sections will enlighten the contents of each folder.
+
+\subsection{bc-20090226}
+We use some data structures provided by the \textit{Ada95 Booch Components}, especially graphs and queues. These data structures are not provided by Ada itself. Unfortunately, the implementations of Ada95 Booch needed some revision by ourselves to offer the behavior, we required. You can find the adapted priority queue in the packages\\ \\
+\noindent\hspace*{12mm}%
+\texttt{bc-containers-queues-ordered-bounded.ads} and \\
+\noindent\hspace*{12mm}%
+\texttt{bc-containers-queues-ordered-bounded.adb}\\ \\
+and the aligned directed graph in the packages\\ \\
+\noindent\hspace*{12mm}%
+\texttt{bc-graphs-directed-sorted.ads} and \\
+\noindent\hspace*{12mm}%
+\texttt{bc-graphs-directed-sorted.adb}\\ \\
+in the \texttt{src} folder. DARXplorer is interfacing the Ada95 Booch components by means of the \texttt{dxpl-booch-*} packages, which can be found in the source folder, as well.
+
+The components are updated frequently by two very responsive authors. So it might be a good idea to check their repository once in a while. The interfaces in DARXplorer and the customized versions of the priority queue and the directed graph should not be touched by updates. Just replace the folder \texttt{bc-20090226} with a new version and match the path to the components in the \texttt{Makefile} plus the shell script.
+
+\subsection{examples}
+The \texttt{examples} folder contains declarations of cryptographic primitives in Ada, that are based on a mixture of addition, rotation and xor. It is a good place to be started, if you want to learn, how to write descriptions by yourself. At present, we support the following primitives:
+\begin{itemize}
+	\item \ Blake-32
+	\item \ Blake-64
+	\item \ Blue Midnight Wish 256
+	\item \ Blue Midnight Wish 512
+	\item \ Edon-R 256
+	\item \ Edon-R 512
+	\item \ Salsa-20
+	\item \ SHA-256
+	\item \ SHA-512
+	\item \ Tiny Encryption Algorithm (TEA)
+	\item \ Threefish-256
+	\item \ Threefish-512
+	\item \ Threefish-1024
+\end{itemize}
+
+Both \textit{Blue Midnight Wish} and \textit{Threefish} are also covered with revised versions including changes made by submitting tweaked primitives to the second round of the NIST competition.
+
+\subsection{src}
+Contains the source distribution of DARXplorer. It includes the following packages:\\ \\
+\medskip
+\begin{tabular}{l l l}
+        Packages & Description\\
+\hline
+        \verb|dxpl-io-*| & Implementing a project wide debugger, logger\\
+        & and formatter.\\
+        \verb|dxpl-round_function-*| & Interfaces and basic methods of the round function.\\
+        \verb|dxpl-support-*| & Implementation of algorithms provided by\\
+        &  Lipmaa and Moriai to examine the differential\\
+        &  properties of addition.\\
+        \verb|dxpl-technique-*| & Providing implementations of techniques: \\
+        & Lazy Laura, Greedy Grete, Pedantic Petra and\\
+        & Fuzzy Fiona.\\
+        \verb|dxpl-toolbox-*| & Analyzation framework for each technique\\
+\end{tabular}
+
+\subsection{src/compiler}
+The compiler is used to integrate a description of a cryptographic primitive into the
+framework. Therefore, several files are automatically generated and copied to the subdirectory \texttt{src/function}.
+
+The subsequent table lists important packages and files.\\ \\
+\medskip
+\begin{tabular}{l l l}
+        Packages/Files & Description\\
+\hline
+        \verb|dxpl_types.dummy| & Declaration of project wide data types. This file\\
+        & is used to generate automatically consistent Ada sources\\
+        & declaring data types based on 32 and 64 bit.\\
+        \verb|dxpl-compiler-cli| & Implementation of the command line interface\\
+        & of DARXplorer.\\
+        \verb|dxpl-compiler-*| & We provided a separate debug package for\\
+        & the compiler. Also, implementations of a symbol table\\
+        & and a syntax-tree can be found here.
+\end{tabular}
+
+The syntax tree is crucial in DARXplorer. It is used to parse arbitrary mathematical
+expressions in a primitive description. See chapter \ref{chapter:syntax}.
+
+\subsection{src/compiler/lexer}
+A very efficient implementation of a lexer is implemented. The vocabulary,
+the lexer and compiler are aware of, has to be defined in the corresponding
+package. The lexer is divided into three parts: the lexer itself, the vocabulary
+and a reader package to provide input/output operations. The lexer is used
+by the compiler to read in primitive descriptions.
+
+\subsection{src/compiler/parser}
+The parser is used to parse and interpret the primitive description. Implementation
+is comprehensive, but can be simplified by studying the \textit{BNF} syntax.
+about supported statements. Naming of parser elements is aligned to the
+BNF syntax. To keep source files small, many parts are outsourced by means
+of \texttt{separate} (Ada keyword). The parser generates the following packages, if the input was \texttt{examples/threefish256.adb}. They are stored in \texttt{src/function}.\\ \\
+
+\vfill
+
+\begin{lstlisting}[caption=dxpl.ads]
+with Interfaces;
+package DXPL is 
+  type Word is new Interfaces.Unsigned_64;
+  subtype Rounds is Positive range 1 ..  9;
+end DXPL; 
+\end{lstlisting}
+
+\clearpage
+
+\begin{lstlisting}[caption=dxpl-support-state.ads]
+package DXPL.Support.State is
+  type Round_State is new Basic_State with
+    record
+      Message : Word_Array_4 := (others => 16#0#);
+      key : word_array_4;
+    end record;
+    
+  function Get_Name return String;
+  function Get_Digest (State : in Round_State) return Word_Array;
+  
+  procedure Set_Digest (State : in out Round_State; Item : in Word_Array);
+end DXPL.Support.State; 
+\end{lstlisting}
+
+\vfill
+
+\begin{lstlisting}[caption=dxpl-support-state.adb]
+package body DXPL.Support.State is
+  procedure Set_Digest (State : in out Round_State; Item : in Word_Array) is
+  begin
+    State.Message := Item;
+  end Set_Digest;
+  
+  function Get_Digest (State : in Round_State) return Word_Array is
+  begin
+    return State.Message;
+  end Get_Digest;
+  
+  function Get_Name return String is
+  begin
+    return "Threefish 256";
+  end Get_Name;
+end DXPL.Support.State; 
+\end{lstlisting}
+
+\vfill
+
+\begin{lstlisting}[caption=dxpl-darxplorer.adb]
+with DXPL.Types;  use DXPL.Types;
+
+procedure DXPL.DARXplorer is
+  Threshold : Conditioned_Float := 2.0 ** (- (Integer (256)));
+  Number_of_Modules : Integer := 17;
+  Name : String := "Threefish 256";
+  
+  procedure Process is separate;
+
+begin
+  Process;
+end DXPL.DARXplorer;
+\end{lstlisting}
+
+\clearpage
+
+As you can see, listings 1 to 4 contain just a minimum of information
+needed to compile the framework. The architecture of DARXplorer
+is very generic. Up until now, we were missing the actual representation
+of the cryptographic primitive. The package \texttt{dxpl-round\_function.adb}
+has its implementation.
+
+The procedure \texttt{DXPL\_Process} in the primitive description is
+evaluated statement per statement. Each time, the parser encounters
+a mathematical statement, it will build a corresponding syntax tree. The
+tree is used to detect additions modulo $2^{32}$ or $2^{64}$. Each addition
+has to be analyzed by one of the techniques we declared in advance
+(see chapter \ref{chapter:techniques}). A problem occurred once, if
+more than one addition is included in the mathematical statement. Here,
+we have to examine each addition on its one. The syntax tree helps us
+to create temporary statements of the initially expression. Each sole
+statement is encapsulated in its own function.
+
+Let's have a look at the main parts of the resulting \texttt{dxpl-round\_function.adb},
+which are self-explanatory.
+
+\begin{lstlisting}[label=lst:five,caption=dxpl-round\_function.adb]
+package body DXPL.Round_Function is
+
+  function Process_1(State : access Rnd_State) return access Word is
+  begin
+    Analyse (State.Message(0), State.Message(1), State.Message(0),
+      State.Output_Candidates, State.Local_Probability);
+    return State.Message(0)'Access;
+  end;
+
+  [..]
+
+  function Process_17 (..) return access Word is
+  begin
+    [..]
+  end;
+
+  function Get_Message (Index : in Positive)
+    return Word_Array is separate;
+  function Get_Digest  (Index : in Positive)
+    return Word_Array is separate;
+  function Get_Key     (Index : in Positive)
+    return Word_Array is separate;
+  procedure Initialize (State : access Round_State) is separate;
+  procedure Finalize (State : access Round_State) is separate;
+  function  Number_of_Tests return Positive is separate;
+
+begin
+  Module_Sequence :=
+      (1 => Process_1'Access, [..], 17=> Process_17'Access);
+  Test_Vectors.Batch :=
+      new Validation_Array'(1 => (Message => new Word_Array'([..]), 
+                                  Digest => new Word_Array'([..])));
+end;
+\end{lstlisting}
+
+\subsection{tests}
+Test cases are produced in many domains according to the in EBNF
+declared syntax presented in chapter \ref{chapter:syntax}. We provided
+a \textit{Makefile} in each subdirectory. Tests are based on \textit{tg} \cite{Spiegel:tg},
+a simple test driver generator for Ada. Unfortunately, \textit{tg} fails while processing, 
+if more than one test raises an exception. Distinct tests with each example
+were correctly executed.
+To run a test, go into a subdirectory and type\\ \\
+\noindent\hspace*{12mm}%
+\texttt{make testgen}\\
+\noindent\hspace*{12mm}%
+\texttt{make compiler}\\
+\noindent\hspace*{12mm}%
+\texttt{make run}\\
+
+\section{Supported syntax in DARXplorer}\label{chapter:syntax}
+Cryptographic primitives are written in Ada, but we limit the powerfulness of
+the programming language to simplify our parser. At the moment,
+we support the following syntax (shown in EBNF). No guarantee of completeness.
+
+\begin{lstlisting}[language=bash,caption=Supported syntax in DARXplorer]
+main_program ::=
+  { <with-declaration> [ <use-declaration> ] } <package-declaration>
+  { <procedure-declaration> | <function_declaration>  | 
+    <variables-declaration> } begin { <begin-declaration> } end ";"
+
+with_declaration ::= 
+  with <identifier> { "." <identifier> } ";"
+ 
+numeric ::=
+  { "0" .. "9" }
+  
+identifier ::= (simplified)
+  "A" .. "Z" | "a" .. "z" | "_" | <numeric>
+
+use-declaration ::= 
+  use <identifier> { "." <identifier> } ";"
+  
+package_declaration ::=
+  package body <identifier> is
+
+procedure_declaration ::=
+  procedure <identifier> is | procedure <identifier> 
+  "(" <procedure_parameter_declaration> ")" is
+  begin <statements> end [ <identifier> ] ";"
+
+proc_parameter ::=
+  <identifier> { "," <identifier } ":" [ in | out | in out ] 
+  <identifier> [ := <expression> ]
+
+procedure_parameter_declaration ::= 
+  proc_parameter { ";" proc_parameter }
+
+expr_element ::=
+  <simple_expression> [ [ "=" | "/=" | "<" | "<=" | ">" | ">=" ] 
+  <simple_expression> ] [ [ and | or | xor ] <simple_expression> ]
+
+primary ::=
+  "(" <expression> ")" | 
+  <identifier> [ "(" <expression> { "," <expression> } ")" ]
+  
+simple_expression_support ::= 
+  <primary> [ "**" <primary> ] [ "*" | mod | "/" ] [ "+" | "-" ]
+
+simple_expression ::=
+  [ "+" | "-" | "not" ] <simple_expression_support>
+  { <simple_expression_support> }
+
+expression ::=
+  <expr_element> { <expr_element> }
+  
+statements ::=
+  null ";" | return <expression> ";" | <for_loop_declaration> ";" | 
+  <identifier> ":=" <expression> ";" | <declare_block_declaration>
+   ";" | <identifier> "(" <expression> { "," <expression> ")" ";"
+
+for_loop_declaration ::=
+  for <identifier> <numeric> ".." <numeric> loop <statements> 
+  end loop ";"
+
+decl_item ::=
+  <numeric> "=>" <numeric>
+  
+decl_element ::=
+  <numeric> | <identifier> | "(" ( others "=>" ( <numeric> | 
+  <identifier> )) | <decl_item> { "," <decl_item> } ")" 
+
+variables_declaration ::=
+  <identifier> { "," <identifier> } ":" [ constant ] <identifier>
+  [ ":=" <decl_element> ] ";"
+
+declare_block_declaration ::=
+  declare <variables_declaration> begin <statements> end ";" 
+
+function_declaration ::=
+  function <identifier> is | function <identifier> 
+  "(" <function_parameter_declaration> ")"
+  return <identifier>  is begin <statements> end [ <identifier> ]";"
+
+func_parameter ::=
+  <identifier> { "," <identifier } ":" [ in ] <identifier>
+  [ := <expression> ]
+
+function_parameter_declaration ::= 
+  <func_parameter> { ";" <func_parameter> }
+
+var_item ::=
+  <numeric> "=>" <numeric>
+
+var_element ::=
+  <numeric> | <identifier> | "(" ( others "=>" ( <numeric> | 
+  <identifier> )) | <var_item> { "," <var_item> } ")" 
+
+variables_declaration ::=
+  <identifier> { "," <identifier> } ":" [ constant ] <identifier> 
+  [ ":=" <var_element> ] ";"
+
+begin_declaration ::=
+  begin ( <configuration_declaration>, { test_vector_declaration } )
+  end [ <identifier> ] ";"
+
+configuration_declaration ::= 
+  [ <identifier> "." ] <identifier> := "(" 
+  [ DXPL_ALGORITHM => ] <identifier> "." <identifier> "," 
+  [ DXPL_ROUNDS    => ] { <numeric> } ")" ","
+  [ DXPL_TERMINATION => ] { <numeric> } ")" ";"
+
+test_vector_declaration ::=
+  [ <identifier> "." ] <identifier> := "("
+  [ DXPL_Message =>  ] <array_declaration> ","
+  [ [ DXPL_Key   =>  ] <array_declaration> "," ]
+  [ DXPL_DIGEST  =>  ] <array_declaration> ")" ";"
+
+array_element ::=
+  [ <numeric>  => ] <numeric>
+
+array_declaration ::= 
+  "(" array_element { "," array_element } ")"
+\end{lstlisting}
+
+\section{Techniques for Analyzation}\label{chapter:techniques}
+
+As it turned out, the Achilles heel of these primitives was some 
+vulnerability to differential cryptanalysis, mostly based on XOR 
+differences. When analysing a given primitive of this type, searching 
+for good xor differences appears to be the way to go.
+
+The toolbox will implement four different techniques to find "good" 
+characteristics. Usually, the differential behaviour of a low 
+Hamming-weight difference is better predictable (i.e., with a higher 
+probability) than the behaviour of a "random" difference. We just start
+with such a low Hamming-weight difference (1, 2, 3 or 4) and try all
+possible input differences with the chosen Hamming-weight.
+
+\subsection{Implemented techniques}
+
+\begin{describe}{{\em Pedantic Petra\/}:}
+\item[{\em Lazy Laura\/}:]
+Laura just "guesses" that the the addition behaves like the xor, 
+difference-wise, i.e., there are no carry bits generated. Starting with 
+low Hamming-weight differences, it is very easy for her to compute the 
+output difference (running the primitive in forward direction). The 
+benefit of Laura’s approach is that it is very efficient and can be 
+implemented for any number of rounds (for 80 rounds, or for 800 rounds).
+  
+\item[{\em Greedy Grete\/}:]
+Laura just assumes no carry bits are generated. This is likely to 
+exclude many "good" characteristics – a carry bit in one round leads 
+to another difference in another round and may ultimately lead to a 
+better (more probable) difference at the end. Grete optimises locally. 
+Given some round’s input differences in some round, she enumerates all 
+the most probable output differences. All of them are considered as 
+the input difference for the next round. If there is more than one 
+optimal difference, Grete’s run time will grow exponentially with the 
+number of rounds.
+
+\item[{\em Pedantic Petra\/}:]
+Petra goes a step further than Grete. Given an input difference, she 
+enumerates all output differences with a nonzero probability. Recall 
+that this is feasible as long as the Hamming-weight of the difference 
+is low. As the number of possible differences is growing fast, and 
+the Hamming-weight also grows with the number of rounds, this can be 
+done only for a few rounds. Petra is pedantic, but not stupid. A naive 
+approach would make her deal with a huge number of extremely 
+low-probable characteristics. But Petra sorts her intermediate results 
+(characteristics with less than the desired number of rounds) by 
+their probability. She always proceeds with the most probable 
+intermediate result. Specifically, when she comes to the last round 
+she just uses Grete’s approach.
+
+\item[{\em Fuzzy Fiona\/}:]
+Fiona's strategy is a new cryptoanalytical approach. Assuming that
+the input for a S-Box, i.e. for a non-linear function, is \texttt{100101}.
+The S-Box describes a mapping from 6 bits to 4 bits. However, 
+the output can only be defined exactly for particular bits: \texttt{1??0},
+whereby question marks represent bits, whose value cannot be
+clearly fixed. Even so, one can specify the probability, that a bit
+equals \texttt{1}. Now, rewriting the output with probabilities results
+in \texttt{($1$, $\frac{1}{4}$, $\frac{2}{3}$, $0$)}. The third bit 
+takes on value \texttt{1} with probability $\frac{2}{3}$, and the last bit
+is definitly \texttt{0} and is never equals \texttt{1}.
+Pursuing such probabilities while computing a hash digest, let one
+employ predictions about the output, if the probability is distinct from $\frac{1}{2}$.
+\end{describe}
+
+\subsection{Adding new techniques}
+Techniques are defined in packages named \texttt{dxpl-technique-*}.
+Each of the them should implement a procedure with the following parameter list:
+
+\begin{lstlisting}[language=Ada]
+    X, Y : in Word;
+    Z    : in out Word;
+    Output_Candidates : in out Word_Vector.Vector;
+    Probability       : in out Conditioned_Float;
+\end{lstlisting}
+
+to support the integration of a particular technique in the framework. 
+The procedure serves as a parameter to the generic round function 
+declared in \\ \texttt{dxpl-round\_function.adb}. See procedure
+\texttt{Analyse} in listing \ref{lst:five}.
+
+Listings \ref{lst:trudy} and \ref{lst:trudy2} show the default behavior, that should be implemented
+when declaring a new procedure to overwrite \texttt{Analyse}. Here,
+both terms of the sum were just added up.
+
+\vfill
+
+\begin{lstlisting}[label=lst:trudy,language=ada,caption=dxpl-technique-trudy.ads]
+with DXPL.Round_Function;
+with DXPL.Toolbox;
+with DXPL.Toolbox.Trudy;
+with DXPL.Types;  use DXPL.Types;
+
+pragma Elaborate_All (DXPL.Round_Function);
+pragma Elaborate_All (DXPL.Toolbox.Trudy);
+
+generic
+  Number_of_Modules : Integer;
+package DXPL.Technique.Trudy is
+
+  procedure Solve
+    (X, Y				: in     Word;
+     Z					: in out Word;
+     Output_Candidates : in out Word_Vector.Vector;
+     Probability       : in out Conditioned_Float);
+  
+  package Characteristic_Function is new DXPL.Round_Function
+    (Analyse 			=> Solve,
+     Number_of_Modules => Number_of_Modules);
+
+  package DARX is new Toolbox
+    (Round_Characteristic => Characteristic_Function,
+     Toolbox_Name		  => "Trusty Trudy",
+     Toolbox_Threshold    => Toolbox_Threshold,
+     Logging_Formatter    => Default_Formatter);
+
+  package DARXplorer is new DARX.Trudy;
+  Toolbox : DARXplorer.Instance;
+end DXPL.Technique.Trudy;
+\end{lstlisting}
+
+\vfill
+
+\begin{lstlisting}[label=lst:trudy2,language=ada,caption=dxpl-technique-trudy.adb]
+package body DXPL.Technique.Trudy is
+  procedure Solve
+    (X, Y				: in     Word;
+     Z					: in out Word;
+     Output_Candidates : in out Word_Vector.Vector;
+     Probability       : in out Conditioned_Float) is
+    pragma Warnings (Off, Output_Candidates);
+    pragma Warnings (Off, Probability);
+  begin
+    Z := X + Y;
+  end Solve;
+end DXPL.Technique.Trudy;
+\end{lstlisting}
+
+\clearpage
+
+It is just that simple. If you had to implement the behavior of
+\textit{Lazy Laura}, you need to represent the addition by
+xor and compute the probability, see listing \ref{lst:laura} for
+a solution.
+
+\begin{lstlisting}[label=lst:laura,language=ada,caption=dxpl-technique-laura.adb]
+with DXPL.Support.Differential_Addition;
+use  DXPL.Support.Differential_Addition;
+
+package body DXPL.Technique.Laura is
+
+  function "+" (L, R : Word) return Word is
+  begin
+    return L xor R;
+  end "+";
+
+  procedure Compute_Optimal_Output
+    (X, Y				: in     Word;
+     Z					: in out Word;
+     Output_Candidates : in out Word_Vector.Vector;
+     Probability       : in out Conditioned_Float) is
+    pragma Warnings (Off, Output_Candidates);
+  begin
+    Z := X + Y;
+    Differential_Probability (X, Y, Z, Probability);
+  end Compute_Optimal_Output;
+end DXPL.Technique.Laura;
+\end{lstlisting}
+
+\section{Provide a user-defined format for log files}\label{chapter:log}
+
+Analyzation produces suitable log files. Formatting is user-defined
+and can be changed by subclassing \texttt{dxpl.io.formatter.ads}.
+Per default, a CSV format is chosen to log each stage and round, i.e.:
+
+\begin{tabbing}
+;Round; Stage; Global Probability; Local Probability; Hamming Weight; Differentials;\\
+\\
+; 1; 1;     ;           5.0000E-0  [2\^\,(-1)]; 1; \\
+;;;;;;0000\_0000\_0000\_0008; \\
+;;;;;;0000\_0000\_0000\_0008; \\
+;;;;;;0000\_0000\_0000\_0000; \\
+;;;;;;0000\_0000\_0000\_0000; \\
+\end{tabbing}
+
+Probabilities are presented in decimal with four decimal places and
+rounded to the power of two, which increases readability. Words are
+represented with leading zeros and underscores every fourth digit.
+
+\section{Challenges and future work}\label{chapter:future}
+
+DARXplorer made a significant leap compared to its predecessor. The framework
+can handle Ada-based inputs to allow the declaration of arbitrary cryptographic
+primitives based on a mixture of addition, rotation and xor. We showed, that several
+primitives can be declared to be compatible with DARXplorer. Nevertheless,
+the syntax DARXplorer currently understands is very limited. 
+
+Producing examples for DARXplorer showed, that converting cryptographic
+primitives to Ada is a error prone task. Most primitives are declared in \textit{C}. It 
+might be helpful to replace the parser for Ada with a parser, 
+that converts C code in Ada. In this way, primitives could be applied to DARXplorer
+by means of simple copy and paste.
+
+Then again, declaration of primitives in Ada allows designers to fall back upon
+the powerfulness of Ada in scopes, where DARXplorer does not need to analyze the 
+source code. These sections are variable declarations, additional functions and
+procedures outside from \texttt{DXPL\_Initialize}, \texttt{DXPL\_Finalize} and
+\texttt{DXPL\_Process}.
+
+A major drawback of DARXplorer 2.0 as opposed to its predecessor is, that the framework
+no longer supports backward analyzing. First tests showed that maximum
+rounds, that could be reached with the former DARXplorer by starting in the middle 
+and perform both forward and backward analyze, has been bisected. To support 
+backward analyzation, one can either declare a backward round of the primitive
+by its own or, much better, find a way to automatically reverse the forward 
+declaration within DARXplorer itself.
+
+Further on, it would help matters, if the framework runs distributed on several cores.
+At the moment, only one core is occupied with analyzation. Each analyzation involves
+pursue an input difference through as much rounds as possible. For each input
+difference, an extra thread could be created.
+
+\bibliographystyle{acmtrans} % natdin
+\bibliography{acmtrans}
+
+\end{document}
+
+

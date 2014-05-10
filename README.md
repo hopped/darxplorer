@@ -99,9 +99,82 @@ employ predictions about the output, if the probability is distinct
 from 1/2.
 
 
+## Supported Hash functions
+
+This source distribution already has default descriptions for the following
+hash functions (cf. __examples__ folder):
+
+- Blake-32
+- Blake-64
+- Blue Midnight Wish 256
+- Blue Midnight Wish 512
+- Edon-R 256
+- Edon-R 512
+- Salsa-20
+- SHA-256
+- SHA-512
+- Tiny Encryption Algorithm (TEA)
+- Threefish-256
+- Threefish-512
+- Threefish-1024
+
+It follows as an example the description of TEA.
+
+with DXPL_Types_32; use DXPL_Types_32;
+
+``` ada
+procedure TEA is
+
+   ------------------------------
+   --  Additional definitions  --
+   ------------------------------
+
+   TEA_Delta : DXPL_Types_32.Word := 16#9E3779B9#;
+   TEA_Sum   : DXPL_Types_32.Word := 2#0#;
+
+   --------------------------------
+   --  Process one round of TEA  --
+   --------------------------------
+
+   procedure DXPL_Process
+     (Message : in out DXPL_Types_32.Word_Array_2;
+      Key     : in DXPL_Types_32.Word_Array_4 := (others => 16#0#)) is
+   begin
+      --# BEGIN
+      TEA_Sum := TEA_Sum + TEA_Delta;
+      Message (0) := Message (0) +
+                     ((Shift_Left (Message (1), 4) + Key (0)) xor
+                      (Message (1) + TEA_Sum) xor
+                      (Shift_Right (Message (1), 5) + Key (1)));
+      Message (1) := Message (1) +
+                     ((Shift_Left (Message (0), 4) + Key (2)) xor
+                      (Message (0) + TEA_Sum) xor
+                      (Shift_Right (Message (0), 5) + Key (3)));
+      --# END
+   end DXPL_Process;
+
+-------------
+--  SETUP  --
+-------------
+
+begin
+   DXPL_Types_32.Configuration
+     (DXPL_ALGORITHM   => "Tiny Encryption Algorithm (TEA)",
+      DXPL_ROUNDS      => 32,
+      DXPL_TERMINATION => 256);
+
+   DXPL_Types_32.Test_Vector
+     (DXPL_MESSAGE => (0 => 16#01234567#, 1 => 16#89abcdef#),
+      DXPL_KEY     => (0 => 16#00112233#, 1 => 16#44556677#,
+                       2 => 16#8899aabb#, 3 => 16#ccddeeff#),
+      DXPL_DIGEST  => (0 => 16#126c6b92#, 1 => 16#c0653a3e#));
+end TEA;
+```
+
+
 ## Documentation
 
-There exists an extensive documentation essential to both developers and users
+There exists extensive documentation essential to both [developers](docs/developer/darx-developer-20090924.pdf) and [users](docs/user/darx-user-20090924.pdf)
 in the __docs__ folder.
 
 
@@ -189,11 +262,7 @@ includes many files to check the integrity of DARXplorer. We used
 'tg', a test driver generator for Ada programs.
 
 Besides common Ada data structures, we used most notable graph based
-structures from the Ada Booch Library. See
-
-```
-http://sourceforge.net/projects/booch95
-```
+structures from the [Ada Booch Library](http://sourceforge.net/projects/booch95/).
 
 for more information. The version we used is included in this
 distribution and is contained in the directory 'bc-20090226'.
@@ -211,4 +280,3 @@ Copyright (C) 2008, 2009 by
 
   Bauhaus-University Weimar, Germany
   [Chair of Media Security](http://www.uni-weimar.de/de/medien/professuren/mediensicherheit/home/), Stefan Lucks
-

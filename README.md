@@ -120,9 +120,9 @@ hash functions (cf. __examples__ folder):
 
 It follows as an example the description of TEA.
 
+``` ada
 with DXPL_Types_32; use DXPL_Types_32;
 
-``` ada
 procedure TEA is
 
    ------------------------------
